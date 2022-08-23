@@ -7,3 +7,5 @@ ARTICLE_COLLECTION = "Article"
 DICT_COLLECTION = "Dict"
     
 DB = pymongo.MongoClient(CONNECTION_STRING)[DB_NAME]
+
+sentKey = "29c2de4861c643308f53b806c94a39ed"

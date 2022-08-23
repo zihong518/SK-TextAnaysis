@@ -2,13 +2,13 @@ from asyncio.windows_events import NULL
 import os.path
 import sys
 sys.path.append(os.path.abspath('../'))
-from config import DB, DB, REVIEW_COLLECTION, ARTICLE_COLLECTION, DICT_COLLECTION
+from config import DB, DB, REVIEW_COLLECTION, ARTICLE_COLLECTION, DICT_COLLECTION,sentKey
 import time
 from pymongo import UpdateOne
 
 
 
-key = "29c2de4861c643308f53b806c94a39ed"
+
 endpoint = "https://skfhtextanalysis.cognitiveservices.azure.com/"
 
 from azure.ai.textanalytics import TextAnalyticsClient
@@ -16,7 +16,7 @@ from azure.core.credentials import AzureKeyCredential
 
 # Authenticate the client using your key and endpoint 
 def authenticate_client():
-    ta_credential = AzureKeyCredential(key)
+    ta_credential = AzureKeyCredential(sentKey)
     text_analytics_client = TextAnalyticsClient(
             endpoint=endpoint, 
             credential=ta_credential,
