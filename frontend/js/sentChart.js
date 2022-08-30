@@ -1,5 +1,5 @@
-import { getSentDict, getSentWord, getDateRange } from './api.js'
-
+import { getSentDict, getSentWord, getNgram } from './api.js'
+import Ngram from './ngram.js'
 function hexToRgbA(hex, opacity = 0.5) {
   let c
   if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
@@ -74,6 +74,7 @@ async function sentChart(data, filter) {
         return x.sent === sent
       })
       sentData.map((x) => {
+        x.date = new Date(x.date)
         x.date = `${x.date.getFullYear()}/${x.date.getMonth() + 1}`
       })
       sentData.reduce((res, val) => {
@@ -104,7 +105,7 @@ async function sentChart(data, filter) {
     .attr('class', 'Yaxis')
     .call(d3.axisLeft(y).tickFormat(d3.format('d')))
 
-  const color = d3.scaleOrdinal(d3.schemeCategory10)
+  const color = d3.scaleOrdinal(['#FC5C5C', '#8CFC4B', '#43D7FC'])
   setSlider()
   update(startTime, EndTime, data)
 
@@ -161,19 +162,20 @@ async function sentChart(data, filter) {
       groupData.get(x)
       groupSortData.set(x, groupData.get(x))
     })
+    console.log(groupSortData)
     // Updata the line
     svg
-      .selectAll('.line')
+      .selectAll('.sentLine')
       .data(groupSortData)
       .join('path')
-      .attr('class', 'line')
+      .attr('class', 'sentLine')
       .transition()
       .duration(500)
       .attr('fill', 'none')
       .attr('stroke', function (d) {
-        return hexToRgbA(color(d[0]), 0.5)
+        return hexToRgbA(color(d[0]), 0.6)
       })
-      .attr('stroke-width', 2)
+      .attr('stroke-width', 4)
       .attr('d', function (d) {
         return d3
           .line()
@@ -184,8 +186,25 @@ async function sentChart(data, filter) {
             return y(d.count)
           })(d[1])
       })
+    svg
+      // First we need to enter in a group
+      .selectAll('.sentDot' + filter.bank)
+      .data(groupSortData)
+      .join('g')
+      .attr('class', 'sentDot' + filter.bank)
+      .style('fill', (d) => hexToRgbA(color(d[0]), 0.8))
+      // Second we need to enter in the 'values' part of this group
+      .selectAll('.sentPoint' + filter.bank)
+      .data((d) => d[1])
+      .join('circle')
+      .attr('class', 'sentPoint' + filter.bank)
+      .transition()
+      .duration(500)
+      .attr('cx', (d) => x(d.date))
+      .attr('cy', (d) => y(d.count))
+      .attr('r', 4)
+      .attr('stroke', 'white')
   }
-
   const barWidth = (document.body.clientWidth * 5) / 16 - 100
   const barSvg = d3
     .select('#sent' + filter.bank + 'svg')
@@ -216,7 +235,7 @@ async function sentChart(data, filter) {
 
   svg_pos.append('g').attr('class', 'yAxis_pos' + filter.bank)
   async function getData() {
-    const data = await getSentWord({ bank: filter.bank, content: filter.content }).then((res) => res.data)
+    const data = await getSentWord(filter).then((res) => res.data)
     return data
   }
   async function getDict() {
@@ -293,29 +312,82 @@ async function sentChart(data, filter) {
       .transition()
       .duration(500)
       .call(d3.axisLeft(y_neg))
+      .selectAll('text')
+      .attr('font-size', '1.5em')
 
     d3.select('.yAxis_pos' + filter.bank)
       .transition()
       .duration(500)
       .call(d3.axisLeft(y_pos))
+      .selectAll('text')
+      .attr('font-size', '1.5em')
     //Bars
     svg_pos
       .selectAll('.svg_pos')
       .data(posData)
       .join('rect')
-      .attr('class', 'svg_pos')
+      .attr('class', 'svg_pos cursor-pointer')
+      .attr('data-value', (d) => d.word)
       .transition()
       .duration(500)
       .attr('x', x_pos(0))
       .attr('y', (d) => y_pos(d.word))
       .attr('width', (d) => x_pos(d.wordCount))
       .attr('height', y_pos.bandwidth())
-      .attr('fill', '#FCA5A5')
+      .attr('fill', hexToRgbA('#FC5C5C'))
+
+    svg_pos
+      .selectAll('.svg_pos')
+      .on('click', (event, d) => {
+        let date = document.querySelectorAll(`.parameter-value .text${filter.bank}`)
+        let dateStart = date[0].textContent + '/01'
+        let dateEnd = ''
+        let dateEndList = date[1].textContent.split('/')
+        if (dateEndList[1] === '12') {
+          dateEnd = (parseInt(dateEndList[0]) + 1).toString() + '/0' + (parseInt(dateEndList[1]) + 1).toString() + '/01'
+        } else {
+          dateEnd = dateEndList[0] + '/0' + (parseInt(dateEndList[1]) + 1).toString() + '/01'
+        }
+        document.getElementById('bigram-body').innerHTML = ''
+        document.getElementById('trigram-body').innerHTML = ''
+
+        const loading = `<div role="status" class="py-44" >
+                  <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto" />
+
+                  <p class="text-center text-2xl animate-pulse">Loading...</p>
+                </div>`
+        document.getElementById('bigram-loading').innerHTML = loading
+        document.getElementById('trigram-loading').innerHTML = loading
+
+        const element = event.target.dataset
+
+        d3.select('#modal').classed('hidden', false).classed('opacity-100', true)
+        d3.select('#modal-topic').text(filter.bank)
+        d3.select('#modal-keyword').text(d.word)
+        console.log(dateStart)
+        console.log(dateEnd)
+        let input = {
+          topic: filter.bank,
+          keyword: d.word,
+          dateStart: dateStart,
+          dateEnd: dateEnd,
+          content: filter.content,
+        }
+        Ngram(input)
+      })
+      .on('mouseover', (event, d) => {
+        d3.selectAll(`rect[data-value = ${d.word}]`).transition().duration(100).attr('fill', hexToRgbA('#FC5C5C', 1))
+      })
+      .on('mouseleave', (event, d) => {
+        d3.selectAll(`rect[data-value = ${d.word}]`).transition().duration(100).attr('fill', hexToRgbA('#FC5C5C'))
+      })
+
     svg_neg
       .selectAll('.svg_neg')
       .data(negData)
       .join('rect')
-      .attr('class', 'svg_neg')
+      .attr('class', 'svg_neg cursor-pointer')
+      .attr('data-value', (d) => d.word)
       .transition()
       .duration(500)
       .attr('x', function () {
@@ -326,7 +398,53 @@ async function sentChart(data, filter) {
         return x_neg_draw(d.wordCount)
       })
       .attr('height', y_neg.bandwidth())
-      .attr('fill', '#A5EBFC')
+      .attr('fill', hexToRgbA('#43D7FC'))
+
+    svg_neg
+      .selectAll('.svg_neg')
+      .on('mouseover', (event, d) => {
+        d3.selectAll(`rect[data-value = ${d.word}]`).transition().duration(500).attr('fill', hexToRgbA('#43D7FC', 1))
+      })
+      .on('mouseleave', (event, d) => {
+        d3.selectAll(`rect[data-value = ${d.word}]`).transition().duration(500).attr('fill', hexToRgbA('#43D7FC'))
+      })
+      .on('click', (event, d) => {
+        let date = document.querySelectorAll(`.parameter-value .text${filter.bank}`)
+        let dateStart = date[0].textContent + '/01'
+        let dateEnd = ''
+        let dateEndList = date[1].textContent.split('/')
+        if (dateEndList[1] === '12') {
+          dateEnd = (parseInt(dateEndList[0]) + 1).toString() + '/0' + (parseInt(dateEndList[1]) + 1).toString() + '/01'
+        } else {
+          dateEnd = dateEndList[0] + '/0' + (parseInt(dateEndList[1]) + 1).toString() + '/01'
+        }
+        document.getElementById('bigram-body').innerHTML = ''
+        document.getElementById('trigram-body').innerHTML = ''
+
+        const loading = `<div role="status" class="py-44" >
+                  <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto" />
+
+                  <p class="text-center text-2xl animate-pulse">Loading...</p>
+                </div>`
+        document.getElementById('bigram-loading').innerHTML = loading
+        document.getElementById('trigram-loading').innerHTML = loading
+
+        const element = event.target.dataset
+
+        d3.select('#modal').classed('hidden', false).classed('opacity-100', true)
+        d3.select('#modal-topic').text(filter.bank)
+        d3.select('#modal-keyword').text(d.word)
+        console.log(dateStart)
+        console.log(dateEnd)
+        let input = {
+          topic: filter.bank,
+          keyword: d.word,
+          dateStart: dateStart,
+          dateEnd: dateEnd,
+          content: filter.content,
+        }
+        Ngram(input)
+      })
   }
 
   function setSlider() {
@@ -361,7 +479,7 @@ async function sentChart(data, filter) {
       .attr('transform', 'translate(80,30)')
       .call(sliderRange)
       .selectAll('text')
-      .attr('class', 'text')
+      .attr('class', 'text' + filter.bank)
     d3.selectAll('#sentDateFilterSvg  text').attr('font-size', '0.7em')
   }
 }

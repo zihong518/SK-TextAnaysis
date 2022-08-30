@@ -1,0 +1,4 @@
+[20220829 23:52:37 DEBUG   ] Building prefix dict from the default dictionary ...
+[20220829 23:52:37 DEBUG   ] Loading model from cache C:\Users\zihon\AppData\Local\Temp\jieba.cache
+[20220829 23:52:38 DEBUG   ] Loading model cost 0.406 seconds.
+[20220829 23:52:38 DEBUG   ] Prefix dict has been built succesfully.

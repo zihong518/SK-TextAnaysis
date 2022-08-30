@@ -1,3 +1,5 @@
+from nntplib import ArticleInfo
+from pickle import NONE
 from pymongo import UpdateOne
 import os.path
 import sys
@@ -37,12 +39,12 @@ def getToken(row, stop_word):
     return seg_list
 
 
-def sentenceToToken(collection):
-    test = list(DB[collection].find({}))
+def sentenceToToken(collection,source):
+    test = list(DB[collection].find({"source":source}))
     stop_words = list(DB[DICT_COLLECTION].find(
         {"type": "stop_word"}))[0]['list']
     article = pd.DataFrame(test)
-    print(article.head())
+    print(len(test))
     article['word'] = article.sentence.apply(lambda x: getToken(x, stop_words))
     updates = []
     start_time = time.time()
@@ -61,11 +63,28 @@ def sentenceToToken(collection):
     print("AFTER WRITE")
     print("--- %s seconds ---" % (time.time() - start_time))
 
-
+def updateReview():
+    review = list(DB[REVIEW_COLLECTION].find({"type":None}))
+    updates=[]
+    start_time = time.time()
+    for index,row in enumerate( review):
+        if ((index+1) % 1000) == 0:
+            print(index+1)
+            print("STARE WRITE")
+            DB[REVIEW_COLLECTION].bulk_write(updates)
+            print("AFTER WRITE")
+            updates = []
+            print("CLEAN THE UPDATES")
+            time.sleep(5)
+        updates.append(UpdateOne({'_id': row.get('_id')}, {
+                       '$set': {'source':"PTT","type":"creditcard"}}, upsert=True))
+    DB[REVIEW_COLLECTION].bulk_write(updates)
+    print("AFTER WRITE")
+    print("--- %s seconds ---" % (time.time() - start_time))                                                   
 def main():
-    print('test')
-    # jiebaAddDict()
-    # sentenceToToken(ARTICLE_COLLECTION)
+    # updateReview()
+    jiebaAddDict()
+    sentenceToToken(ARTICLE_COLLECTION,'app store')
 
 
 if __name__ == '__main__':

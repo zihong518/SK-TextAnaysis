@@ -104,7 +104,6 @@ function lineChart(data) {
       newData = newData.sort(sortByDateAscending)
 
       allData = allData.concat(newData)
-      console.log(allData)
       update(startTime, EndTime, allData)
       // const newDateMap = d3.group(newData, (d) => d.word)
     })
@@ -120,6 +119,7 @@ function lineChart(data) {
     allData = allData.filter((x) => x.word !== deleteValue)
     update(startTime, EndTime, allData)
   })
+
   // 更新圖表
   function update(startTime, EndTime, inputData) {
     let filterData
@@ -162,7 +162,6 @@ function lineChart(data) {
       bank.push(x.dataset.value)
     })
     let groupData = d3.group(filterData, (x) => x.word)
-
     let groupSortData = new Map()
     bank.forEach((x) => {
       groupData.get(x)
@@ -180,7 +179,7 @@ function lineChart(data) {
       .attr('stroke', function (d) {
         return hexToRgbA(color(d[0]), 0.5)
       })
-      .attr('stroke-width', 2)
+      .attr('stroke-width', 5)
       .attr('d', function (d) {
         return d3
           .line()
@@ -194,6 +193,24 @@ function lineChart(data) {
       .attr('data-value', (d) => {
         return d[0]
       })
+    svg
+      // First we need to enter in a group
+      .selectAll('.dot')
+      .data(groupSortData)
+      .join('g')
+      .attr('class', 'dot')
+      .style('fill', (d) => color(d[0]))
+      // Second we need to enter in the 'values' part of this group
+      .selectAll('.point')
+      .data((d) => d[1])
+      .join('circle')
+      .attr('class', 'point')
+      .transition()
+      .duration(500)
+      .attr('cx', (d) => x(d.date))
+      .attr('cy', (d) => y(d.wordCount))
+      .attr('r', 5)
+      .attr('stroke', 'white')
 
     d3.selectAll('.bankButton')
       .data(groupSortData)
@@ -273,7 +290,6 @@ function lineChart(data) {
       return res.data
     })
     .then((data) => {
-      console.log(data)
       const minDate = new Date(data.minDate)
       const maxDate = new Date(data.maxDate)
       const sliderRange = d3

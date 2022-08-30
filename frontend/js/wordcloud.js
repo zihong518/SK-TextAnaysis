@@ -1,5 +1,5 @@
 import { getWordCloud } from './api.js'
-
+import Ngram from './ngram.js'
 function wordCloud(filter, bankLength) {
   const main = document.getElementById('canvas')
   const idName = filter.id
@@ -139,11 +139,45 @@ function wordCloud(filter, bankLength) {
           return d.text
         })
         .attr('data-word', (d) => d.text)
+        .attr('data-bank', filter.bank)
+        .attr('data-dateStart', filter.dateStart)
+        .attr('data-dateEnd', filter.dateEnd)
         .attr('class', 'cloudText cursor-pointer')
         .attr('data-color', (d, i) => fill[d.index % 10])
     }
 
-    d3.selectAll('text.cloudText').on('mouseover', wordHighlight).on('mouseleave', wordHighlight)
+    d3.selectAll('text.cloudText')
+      .on('mouseover', wordHighlight)
+      .on('mouseleave', wordHighlight)
+      .on('click', (event, d) => {
+        document.getElementById('bigram-body').innerHTML = ''
+        document.getElementById('trigram-body').innerHTML = ''
+
+        const loading = `<div role="status" class="py-44" >
+                  <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto" />
+
+                  <p class="text-center text-2xl animate-pulse">Loading...</p>
+                </div>`
+        document.getElementById('bigram-loading').innerHTML = loading
+        document.getElementById('trigram-loading').innerHTML = loading
+
+        const element = event.target.dataset
+
+        d3.select('#modal').classed('hidden', false).classed('opacity-100', true)
+        d3.select('#modal-topic').text(element.bank)
+        d3.select('#modal-keyword').text(element.word)
+
+        let input = {
+          topic: element.bank,
+          keyword: element.word,
+          product: filter.product,
+          source: filter.source,
+          dateStart: element.dateStart,
+          dateEnd: element.dateEnd,
+          content: filter.content,
+        }
+        Ngram(input)
+      })
   })
 
   function wordHighlight(event, d) {
@@ -156,6 +190,10 @@ function wordCloud(filter, bankLength) {
           return d.size * 1.2
         })
         .attr('fill', 'red')
+
+      d3.select('#' + idName)
+        .append('p')
+        .attr('class', 'text-center text-xl mb-5')
     } else if (event.type === 'mouseleave') {
       d3.selectAll('text.cloudText')
         .transition()

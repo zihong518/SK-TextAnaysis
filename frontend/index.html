@@ -84,26 +84,28 @@
     <aside class="w-2/12 h-screen bg-rose-50 fixed">
       <img src="./img/SK_logo.png" alt="" class="px-10 py-6" />
       <h1 class="text-2xl text-center font-bold">新光文字分析平台</h1>
+      {{this.currentType}}
       <div class="mx-5" v-for="">
         <div class="mt-5">
           <p class="text-xl font-bold border-l-8 pl-2 border-main">資料來源</p>
           <div class="mt-1 text-xl flex justify-left">
             <label class="px-3" v-for="type in typeChoose">
-              <input type="radio" name="type" id="" :value="type.type" :checked="type.checked " @change="chooseChange($event)" />
+              <input type="radio" v-model="currentType" name="type" id="" :value="type.type" :checked="type.checked " @change="chooseChange($event)" />
               {{type.value}}
             </label>
           </div>
         </div>
+
         <!-- 篩選看板 -->
         <div class="mt-5" v-for="list in chooseList.list">
           <p class="text-xl font-bold border-l-8 pl-2 border-main">{{list.filterTitle}}</p>
-          <div class="mt-2 text-xl flex justify-start flex-wrap">
+          <div class="mt-2 text-xl flex flex-col justify-start flex-wrap">
             <label class="px-3" v-for="item in list.filterItems" v-if="list.checkBox">
-              <input type="checkbox" :name="list.filterName" id="" :checked="item.checked " :value="item.value" @change="generateChart" />
+              <input type="checkbox" v-model="list.model" :name="list.filterName" id="" :value="item.value" @change="generateChart" />
               {{item.name}}
             </label>
             <label class="px-3" v-for="item in list.filterItems" v-else>
-              <input type="radio" :name="list.filterName" id="" :checked="item.checked " :value="item.value" @change="generateChart" />
+              <input type="radio" v-model="list.model" :name="list.filterName" id="" :value="item.value" @change="generateChart" />
               {{item.name}}
             </label>
           </div>
@@ -187,7 +189,61 @@
         <div id="sentChart" class="mt-4 flex flex-col" :class="currentTab == '情緒分析' ? 'block' : 'hidden'"></div>
       </div>
     </main>
+    <div class="relative z-10 hidden transition-all duration-300 opacity-0" id="modal" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+      <div class="fixed z-10 inset-0 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-full p-4 text-center">
+          <div class="relative bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-3/4 pb-10 \">
+            <div class="bg-white">
+              <div class="text-center">
+                <h3 class="text-3xl my-5 leading-6 font-medium text-gray-900 py-4" id="modal-title">
+                  <span id="modal-topic" class="text-main"></span>
+                  中的
+                  <span id="modal-keyword" class="text-main"></span>
+                </h3>
+                <div>
+                  <p class="text-xl text-center">BiGram</p>
+                  <table class="table-fixed w-3/4 mx-auto">
+                    <thead>
+                      <tr class="bg-rose-100 text-xl py-4">
+                        <th>Word</th>
+                        <th>Word</th>
+                        <th>次數</th>
+                      </tr>
+                    </thead>
 
+                    <tbody id="bigram-body"></tbody>
+                  </table>
+                  <div id="bigram-loading"></div>
+                </div>
+                <div>
+                  <p class="text-xl text-center">TriGram</p>
+                  <table class="table-fixed w-3/4 mx-auto">
+                    <thead>
+                      <tr class="bg-rose-100 text-xl py-4">
+                        <th>Word</th>
+                        <th>Word</th>
+                        <th>Word</th>
+                        <th>次數</th>
+                      </tr>
+                    </thead>
+
+                    <tbody id="trigram-body"></tbody>
+                  </table>
+                  <div id="trigram-loading"></div>
+                </div>
+              </div>
+            </div>
+            <div class="absolute top-0 right-0">
+              <button type="button" class="text-red-400 bg-transparent rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" @click="closeModal" data-modal-toggle="defaultModal">
+                <svg aria-hidden="true" class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                <span class="sr-only">Close modal</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="./js/api.js"></script>
     <script type="module" src="./js/wordcloud.js"></script>
     <script type="module" src="./js/linechart.js"></script>

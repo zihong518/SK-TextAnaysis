@@ -12,12 +12,12 @@ createApp({
       typeChoose: [
         {
           value: '論壇',
-          type: 'typeForum',
+          type: 'Forum',
           checked: true,
         },
         {
           value: 'app評論',
-          type: 'typeApp',
+          type: 'App',
           checked: false,
         },
       ],
@@ -28,40 +28,40 @@ createApp({
           list: [
             {
               filterTitle: '產品比較',
+              model: 'creditcard',
               filterName: 'product',
               filterItems: [
                 {
                   name: '信用卡',
                   value: 'creditcard',
-                  checked: true,
+                },
+                {
+                  name: '銀行服務',
+                  value: 'Bank_Service',
+                  // checked: true,
                 },
               ],
             },
             {
               filterTitle: '篩選看板',
               filterName: 'source',
+              model: ['PTT'],
               checkBox: true,
               filterItems: [
                 {
-                  name: 'PTT-信用卡版',
-                  value: 'PTT-credit',
-                  checked: true,
-                },
-                {
-                  name: 'DCARD-信用卡版',
-                  value: 'DCARD-credit',
-                  checked: false,
+                  name: 'PTT',
+                  value: 'PTT',
                 },
               ],
             },
             {
               filterTitle: '內容篩選',
               filterName: 'content',
+              model: 'article-content',
               filterItems: [
                 {
                   name: '全部',
                   value: 'all-content',
-                  checked: true,
                 },
                 {
                   name: '主文',
@@ -82,42 +82,58 @@ createApp({
             {
               filterTitle: '產品比較',
               filterName: 'product',
-
+              model: ['新光', '國泰', 'Richart'],
+              checkBox: true,
               filterItems: [
                 {
-                  name: '信',
-                  value: 'creditcard',
+                  name: '新光',
+                  value: '新光',
+                },
+                {
+                  name: '國泰',
+                  value: '國泰',
+                },
+                {
+                  name: 'iLeo',
+                  value: 'iLeo',
+                },
+                {
+                  name: 'KoKo',
+                  value: 'KoKo',
+                },
+                {
+                  name: '台新',
+                  value: '台新',
+                },
+                {
+                  name: 'Richart',
+                  value: 'Richart',
+                },
+                {
+                  name: '永豐',
+                  value: '永豐',
+                },
+                {
+                  name: 'DAWHO',
+                  value: 'DAWHO',
                 },
               ],
             },
             {
               filterTitle: '篩選看板',
               filterName: 'source',
-
+              model: ['App store', 'Google play'],
               checkBox: true,
               filterItems: [
                 {
-                  name: 'PTT-信用卡版',
-                  value: 'PTT-credit',
-                },
-              ],
-            },
-            {
-              filterTitle: '內容篩選',
-              filterName: 'content',
-
-              filterItems: [
-                {
-                  name: '全部',
-                  value: 'all-content',
+                  name: 'App store',
+                  value: 'App store',
+                  checked: true,
                 },
                 {
-                  name: '主文',
-                  value: 'article-content',
-                },
-                {
-                  name: '留言',
-                  value: 'review-content',
+                  name: 'Google play',
+                  value: 'Google play',
+                  checked: true,
                 },
               ],
             },
@@ -127,36 +143,69 @@ createApp({
       bankButton: [
         {
           name: '新光',
-          selected: true,
         },
         {
-          name: 'OU',
-          selected: true,
+          name: '永豐',
         },
         {
           name: '台新',
-          selected: true,
         },
       ],
+
       dateButton: [
         {
           dateStart: '2022/04/01',
-          dateEnd: '2022/07/01',
+          dateEnd: '2022/05/01',
         },
         {
-          dateStart: '2022/02/01',
-          dateEnd: '2022/04/01',
+          dateStart: '2022/05/01',
+          dateEnd: '2022/06/01',
+        },
+        {
+          dateStart: '2022/06/01',
+          dateEnd: '2022/07/01',
         },
       ],
-      tabs: ['文字雲比較', '提及熱度比較', '使用字詞比較', '情緒分析', '字彙關聯圖'],
-      currentTab: '情緒分析',
-      keywordA: '新光',
-      keywordB: '台新',
+      tabs: ['文字雲比較', '提及熱度比較', '使用字詞比較', '情緒分析'],
+      currentTab: '文字雲比較',
+      keywordA: '台新',
+      keywordB: '新光',
       minDate: '',
       maxDate: '',
+
+      currentType: 'Forum',
     }
   },
   methods: {
+    chooseChange() {
+      this.typeChoose[0].checked = !this.typeChoose[0].checked
+      this.typeChoose[1].checked = !this.typeChoose[1].checked
+      this.chooseList = function choose() {
+        const choose = this.typeChoose.filter((item) => {
+          return item.checked == true
+          // return item.checked
+        })[0].value
+
+        return this.controlPanel.filter((item) => {
+          // console.log(item.value)
+          return item.value === choose
+        })[0]
+      }
+
+      setTimeout(() => {
+        if (this.currentType === 'App') {
+          this.temp = this.bankButton
+          let product = document.querySelectorAll('input[name=product]:checked')
+          let temp = []
+          product.forEach((x) => {
+            temp.push({ name: x._value })
+          })
+          this.bankButton = temp
+        } else {
+          this.bankButton = this.temp
+        }
+      }, 10)
+    },
     generateChart() {
       this.getWordCloud()
 
@@ -235,6 +284,7 @@ createApp({
 
              <p class="text-center text-2xl animate-pulse">Loading...</p>
         </div>`
+
       document.getElementById('lineChart').innerHTML = loading
       getWordCount(data)
         .then((res) => {
@@ -363,14 +413,6 @@ createApp({
           console.log(err)
         })
 
-      //   getWordCount({bank:inputData}).then((res)=>{
-      //     this.lineChartData = this.lineChartData.concat(res.data)
-      //   }).then(()=>{
-      //     lineChart(this.lineChartData)
-      //   })
-      // }else{
-      //   this.generateChart()
-      // }
       this.getWordCloud()
       this.getLineChart()
     },
@@ -428,6 +470,9 @@ createApp({
       }
       this.getWordProportion()
     },
+    closeModal() {
+      document.getElementById('modal').classList.add('hidden')
+    },
   },
   computed: {
     chooseList: function choose() {
@@ -443,7 +488,11 @@ createApp({
     },
   },
   async mounted() {
-    await getDateRange()
+    const choose = this.typeChoose.filter((item) => {
+      return item.checked == true
+      // return item.checked
+    })[0].type
+    await getDateRange(choose)
       .then((res) => {
         return res.data
       })

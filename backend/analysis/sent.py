@@ -26,29 +26,35 @@ def authenticate_client():
 client = authenticate_client()
 
 # Example function for detecting sentiment in text
-def sentiment_analysis_example(documents,client):
+def sentiment_article(documents,client):
 
-    response = client.analyze_sentiment(documents=documents)[0]
-    print(response)
-    article = response.confidence_scores
-    sent_list = [article.positive,article.neutral,article.negative]
-    sent_index = sent_list.index(max(sent_list))
-    if(sent_index==0):
-        sent ='positive'
-    elif(sent_index ==1):
-        sent = 'neutral'
-    else:
-        sent = 'negative'
+    sentList = []
+    responses = client.analyze_sentiment(documents=documents)
+    for response in responses: 
+        article = response.confidence_scores
+        sent_list = [article.positive,article.neutral,article.negative]
+        sent_index = sent_list.index(max(sent_list))
+        if(sent_index==0):
+            sent ='positive'
+        elif(sent_index ==1):
+            sent = 'neutral'
+        else:
+            sent = 'negative'
+        sentList.append(sent)
     
-    sentence_list =[]
-    for idx, sentence in enumerate(response.sentences):
-        result ={
-            "sentence" : sentence.text,
-            'sent':sentence.sentiment
-        }
-        sentence_list.append(result)
-        
-    return sent ,sentence_list
+    sentence_list_all =[]
+    sentence_list = []
+    for response in responses:
+        for idx, sentence in enumerate(response.sentences):
+            result ={
+                "sentence" : sentence.text,
+                'sent':sentence.sentiment
+            }
+            sentence_list.append(result)
+        sentence_list_all.append(sentence_list)
+        sentence_list=[]
+
+    return sentList ,sentence_list_all
 
 def sentiment_review(documents,client):
     sentList = []
@@ -67,37 +73,65 @@ def sentiment_review(documents,client):
     
     return sentList
 
-allData = list(DB[REVIEW_COLLECTION].find({"sent":None},{"_id": 1, "cmtContent": 1}))
-print(len(allData))
-updates = []
-temp = []
-id = []
-for index,data in enumerate(allData):
+def sentAnalysis_review():
+    allData = list(DB[REVIEW_COLLECTION].find({"sent":None},{"_id": 1, "cmtContent": 1}))
+    print(len(allData))
+    updates = []
+    temp = []
+    id = []
+    for index,data in enumerate(allData):
+        temp.append("0"+data['cmtContent'])
+        id.append(data['_id'])
+        if((index+1) % 10 == 0):
+            print(len(temp))
+            sent = sentiment_review(temp,client)
+            
+            for i in range(0,10):
+                updates.append(UpdateOne({'_id': id[i]}, {
+                            '$set': {'sent':sent[i]}}, upsert=True))
+            temp = []
+            id= []
 
-    temp.append(data['cmtContent'])
-    id.append(data['_id'])
-    if((index+1) % 10 == 0):
-        sent = sentiment_review(temp,client)
         
-        for i in range(0,10):
-            updates.append(UpdateOne({'_id': id[i]}, {
-                        '$set': {'sent':sent[i]}}, upsert=True))
-        temp = []
-        id = []
+        if ((index+1) % 1000) == 0:
+            print(index+1)
+            print("STARE WRITE")
+            DB[REVIEW_COLLECTION].bulk_write(updates)
+            print("AFTER WRITE")
+            updates = []
+            print("CLEAN THE UPDATES")
+            time.sleep(5)
+    DB[REVIEW_COLLECTION].bulk_write(updates)
+    print("AFTER WRITE")
+        
+def sentAnalysis_article():
+    allData = list(DB[ARTICLE_COLLECTION].find({"sent":None},{"_id": 1, "origin_sentence": 1}))
+    print(len(allData))
+    updates = []
+    temp = []
+    id = []
+    for index,data in enumerate(allData):
 
-    if ((index+1) % 1000) == 0:
-        print(index+1)
-        print("STARE WRITE")
-        DB[REVIEW_COLLECTION].bulk_write(updates)
-        print("AFTER WRITE")
-        updates = []
-        print("CLEAN THE UPDATES")
-        time.sleep(5)
-        
-        
+        temp.append('0'+data['origin_sentence'][:5119])
+        id.append(data['_id'])
+        if((index+1) % 10 == 0):
+            sent,sentence_list = sentiment_article(temp,client)
+            for i in range(0,10):
+                updates.append(UpdateOne({'_id': id[i]}, {
+                            '$set': {'sent':sent[i],"sentence_sent":sentence_list[i]}}, upsert=True))
+            temp=[]
+            id=[]
+        if ((index+1) % 1000) == 0:
+            print(index+1)
+            print("STARE WRITE")
+            DB[ARTICLE_COLLECTION].bulk_write(updates)
+            print("AFTER WRITE")
+            updates = []
+            print("CLEAN THE UPDATES")
+            time.sleep(5)
+            
+            
+    DB[ARTICLE_COLLECTION].bulk_write(updates)
+    print("AFTER WRITE")
     
-    # print(index)
-
-DB[REVIEW_COLLECTION].bulk_write(updates)
-print("AFTER WRITE")
-# print("--- %s seconds ---" % (time.time() - start_time))
+sentAnalysis_review()

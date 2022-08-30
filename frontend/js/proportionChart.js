@@ -74,7 +74,7 @@ function proportionChart(data, filter) {
   // Add X axis
   const x = d3
     .scaleLog()
-    .clamp(true)
+    .clamp(false)
 
     .domain([d3.min(rawResult, (x) => x.proportion), d3.max(rawResult, (x) => x.proportion)])
     .range([0, canvasWidth])
@@ -99,7 +99,7 @@ function proportionChart(data, filter) {
   // Add Y axis
   const y = d3
     .scaleLog()
-    .clamp(true)
+    .clamp(false)
     .domain([d3.min(rawResult, (x) => x.proportion), d3.max(rawResult, (x) => x.proportion)])
     .range([canvasHeight, 0])
   let yAxis = svg
@@ -161,7 +161,7 @@ function proportionChart(data, filter) {
   createCanvas(allData)
 
   function createCanvas(data) {
-    g.selectAll('circle')
+    g.selectAll('#proportionChart circle')
       .data(data)
       .join('circle')
       .attr('cx', (d) => {
@@ -186,7 +186,7 @@ function proportionChart(data, filter) {
       .attr('class', 'word')
   }
   function drawPlot() {
-    d3.selectAll('circle')
+    d3.selectAll('#proportionChart circle')
       .data(allData)
       .attr('cx', (d) => {
         return d.x
@@ -228,7 +228,6 @@ function proportionChart(data, filter) {
       let [_, temp] = cleanData(startTime, EndTime)
       allData = temp
       // drawPlot()
-
       simulation = d3
         .forceSimulation(allData)
         .force('collision', d3.forceCollide(11))

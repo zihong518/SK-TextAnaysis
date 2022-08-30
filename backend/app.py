@@ -3,7 +3,7 @@ from tokenize import group
 from unittest import result
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-
+from nltk import ngrams
 from config import DB_NAME, DB, DICT_COLLECTION, REVIEW_COLLECTION, ARTICLE_COLLECTION
 from datetime import datetime
 from operator import itemgetter
@@ -24,13 +24,14 @@ CORS(app)
 # sanity check route
 @app.route('/', methods=['GET'])
 def test():
-    print(DICT_COLLECTION)
     return (DICT_COLLECTION)
 
 
 @app.route('/getCloud', methods=['GET'])
 def getCloud():
     name = request.args.get('name')
+    dataProduct =  request.args.get('dataProduct')
+    dataSource = request.args.get('dataSource')
     dateStart = request.args.get('dateStart')
     dateEnd = request.args.get('dateEnd')
     dateStartList = dateStart.split('/')
@@ -38,6 +39,12 @@ def getCloud():
     dataContent = request.args.get('content')
 
     article_pipeline = [
+        {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
         {
             "$project": {
                 "artTitle": True,
@@ -50,7 +57,6 @@ def getCloud():
             },
         },
         {
-
             "$match": {
                 "artTitle": {"$regex": name},
                 "date": {
@@ -73,13 +79,19 @@ def getCloud():
         {
             "$match": {
                 "wordCount": {
-                    "$gt": 5
+                    "$gt": 2
                 }
             }
         }
 
     ]
     review_pipeline = [
+                {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
         {
             "$project": {
                 "_id": 0,
@@ -133,7 +145,7 @@ def getCloud():
         {
             "$match": {
                 "wordCount": {
-                    "$gt": 5
+                    "$gt": 2
                 }
             }
         },
@@ -166,11 +178,20 @@ def getCloud():
 
 @app.route('/getCount', methods=['GET'])
 def getCount():
-    now = datetime.now()
-    print(now.time())
+
     bankList = request.args.get('name').split(',')
+    bankList_lower = [word.lower() for word in bankList]
+    bankList = bankList+bankList_lower
+    dataProduct =  request.args.get('dataProduct')
+    dataSource = request.args.get('dataSource')
     dataContent = request.args.get('content')
     article_pipeline = [
+                {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
         {
             "$project": {
                 "word": True,
@@ -221,58 +242,42 @@ def getCount():
 
     ]
     review_pipeline = [
-        {
-            "$project": {
-                "_id": 0,
-                "artUrl": True,
-            },
-        },
-        {
-            "$lookup": {
-                "from": "Review",
-                "localField": "artUrl",
-                "foreignField": "artUrl",
-                "as": "reviews"
-            }
-        },
-        {
-            "$project": {
-                "reviews._id": 0
-            },
-        },
-        {
-            "$unwind": "$reviews"
-        },
-        {
-            "$unwind": "$reviews.word"
-        },
-        {
+                {
             "$match": {
-                'reviews.word': {
-                    "$in": bankList
-                }
+                "type": dataProduct,
+                "source":dataSource
             }
         },
         {
             "$project": {
                 "artUrl": 0,
-                "reviews.cmtDate": {
+                "cmtDate": {
                     "$dateFromString": {
-                        "dateString": '$reviews.cmtDate'
+                        "dateString": '$cmtDate'
                     }
                 },
-                "reviews.word": 1
+                "word": 1
             },
+        },
+        {
+            "$unwind": "$word"
+        },
+        {
+            "$match": {
+                'word': {
+                    "$in": bankList
+                }
+            }
         },
         {
             "$group": {
                 "_id": {
                     "Date": {
                         "$dateToString": {
-                            "format": "%Y-%m", "date": "$reviews.cmtDate"
+                            "format": "%Y-%m", "date": "$cmtDate"
                         }
                     },
-                    "Word": "$reviews.word"
+                    "Word": "$word"
                 },
                 "wordCount": {
                     "$sum": 1
@@ -282,7 +287,7 @@ def getCount():
         {
             "$set": {
                 "date": "$_id.Date",
-                "word": {'$toUpper':"$_id.Word"},
+                "word": "$_id.Word",
 
             }
         },
@@ -298,81 +303,125 @@ def getCount():
     if(dataContent == 'article-content'):
         result = list(DB[ARTICLE_COLLECTION].aggregate(article_pipeline))
     elif(dataContent == 'review-content'):
-        result = list(DB[ARTICLE_COLLECTION].aggregate(review_pipeline))
+        result = list(DB[REVIEW_COLLECTION].aggregate(review_pipeline))
     else:
         article_result = list(
             DB[ARTICLE_COLLECTION].aggregate(article_pipeline))
         reviews_result = list(
-            DB[ARTICLE_COLLECTION].aggregate(review_pipeline))
+            DB[REVIEW_COLLECTION].aggregate(review_pipeline))
         all_result = article_result+reviews_result
         df = pd.DataFrame(all_result)
         result = df.groupby(by=["date", "word"]).sum()
         result = result.reset_index().to_dict('records')
-        # for item in all_result:
-        #     if item['_id'] not in wordList:
-        #         wordList.append(item['_id'])
-        #         result.append(item)
-        #     else:
-        #         for i in result:
-        #             if (i['_id'] == item['_id']):
-        #                 i['wordCount'] += item['wordCount']
-    print( datetime.now()  - now)
     return jsonify(result)
 
 
 @app.route('/getDateRange', methods=['GET'])
 def getDateRange():
-    min_pipeline = [
-        {
-            "$project": {
-                "date": {
-                    "$dateFromString": {
-                        "dateString": '$artDate',
-                        "onError": datetime(2021, 5, 5),
+    type = request.args.get('type')
+    if type =="App":
+        min_pipeline = [
+            {
+              "$match":{
+                  "$or":[{"source":"app store"},{"source":"play store"}]
+              }  
+            },
+            {
+                "$project": {
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate',
+                            "onError": datetime(2021, 5, 5),
+                        }
+                    }
+                },
+            },
+            {
+                "$group": {
+                    "_id": {},
+                    "minDate": {
+                        "$min": "$date"
                     }
                 }
-            },
-        },
-        {
-            "$group": {
-                "_id": {},
-                "minDate": {
-                    "$min": "$date"
-                }
             }
-        }
-    ]
-    max_pipeline = [
-        {
-            "$project": {
-                "date": {
-                    "$dateFromString": {
-                        "dateString": '$artDate',
-                        "onError": datetime(2021, 5, 5)
+        ]
+        max_pipeline = [
+                        {
+              "$match":{
+                   "$or":[{"source":"app store"},{"source":"play store"}]
+              }  
+            },
+            {
+                "$project": {
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate',
+                            "onError": datetime(2021, 5, 5)
+                        }
+                    }
+                },
+            },
+            {
+                "$group": {
+                    "_id": {},
+                    "maxDate": {
+                        "$max": "$date"
                     }
                 }
+            }
+        ]
+    else:
+        min_pipeline = [
+            {
+              "$match":{
+                  "source":"PTT"
+              }  
             },
-        },
-        {
-            "$group": {
-                "_id": {},
-                "maxDate": {
-                    "$max": "$date"
+            {
+                "$project": {
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate',
+                            "onError": datetime(2021, 5, 5),
+                        }
+                    }
+                },
+            },
+            {
+                "$group": {
+                    "_id": {},
+                    "minDate": {
+                        "$min": "$date"
+                    }
                 }
             }
-        }
-        # {
-        #     "$sort": {
-        #         "date": -1
-        #     }
-        # },
-        # {
-        #     "$limit":1
-        # }
-    ]
-
-    minDate = list(DB[ARTICLE_COLLECTION].aggregate(min_pipeline))[
-        0]["minDate"]
+        ]
+        max_pipeline = [
+                        {
+              "$match":{
+                  "source":"PTT"
+              }  
+            },
+            {
+                "$project": {
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate',
+                            "onError": datetime(2021, 5, 5)
+                        }
+                    }
+                },
+            },
+            {
+                "$group": {
+                    "_id": {},
+                    "maxDate": {
+                        "$max": "$date"
+                    }
+                }
+            }
+        ]
+    minDate = list(DB[ARTICLE_COLLECTION].aggregate(min_pipeline))[0]["minDate"]
     maxDate = list(DB[ARTICLE_COLLECTION].aggregate(max_pipeline))[
         0]["maxDate"]
     result = {
@@ -385,10 +434,17 @@ def getDateRange():
 @app.route('/getProportion', methods=['GET'])
 def getProportion():
     dataContent = request.args.get('content')
-
+    dataProduct =  request.args.get('dataProduct')
+    dataSource = request.args.get('dataSource')
     def getArticlePipeline(word):
 
         pipeline = [
+                            {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
             {
                 "$project": {
                     "_id": 0,
@@ -436,6 +492,12 @@ def getProportion():
 
     def getReviewPipeline(word):
         pipeline = [
+                            {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
             {
                 "$project": {
                     "_id": 0,
@@ -504,7 +566,6 @@ def getProportion():
     
     if(dataContent == 'article-content'):
         article_resultA = list(DB[ARTICLE_COLLECTION].aggregate(getArticlePipeline(keywordA)))
-        print(article_resultA)
         article_resultB = list(DB[ARTICLE_COLLECTION].aggregate(getArticlePipeline(keywordB)))
         
         result = article_resultA + article_resultB
@@ -536,14 +597,17 @@ def getProportion():
 @app.route('/getSent')
 def getSent():
     name = request.args.get('name')
-
+    dataProduct =  request.args.get('dataProduct')
+    dataSource = request.args.get('dataSource')
     dataContent = request.args.get('content')
-    pipeline = [
+    article_pipeline = [
             {
                 "$match": {
                     'origin_sentence': {
                         "$regex": name
-                    }
+                    },
+                    "artCat": dataProduct,
+                    "source":dataSource
                 }
             },
             {
@@ -553,7 +617,8 @@ def getSent():
                     "origin_sentence":1,
                     "date": {
                         "$dateFromString": {
-                            "dateString": '$artDate'
+                            "dateString": '$artDate',
+                            "onError": datetime(2021, 5, 5),
                         }
                     },
                     "sent":1
@@ -561,7 +626,15 @@ def getSent():
             },
              {
                 "$group": {
-                    "_id": {"sent": "$sent", "date": "$date"},
+                    "_id": {
+                        "sent": "$sent", 
+                        "date":
+                            {
+                                "$dateToString": {
+                                    "format": "%Y-%m-%d", "date": "$date"
+                                }
+                            }
+                            },
                     "count": {
                         "$sum": 1
                     }
@@ -579,17 +652,82 @@ def getSent():
                 }
             }
         ]
-     
-    result = list(DB[ARTICLE_COLLECTION].aggregate(pipeline))
+    review_pipeline =[
+         {
+                "$match": {
+                    'word': {
+                        "$in": [name]
+                    },
+                    "type": dataProduct,
+                    "source":dataSource
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "cmtContent":1,
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$cmtDate',
+                            "onError": datetime(2021, 5, 5),
+                        }
+                    },
+                    "sent":1
+                },
+            },
+             {
+                "$group": {
+                    "_id": {"sent": "$sent", "date": {
+                        "$dateToString": {
+                            "format": "%Y-%m-%d", "date": "$date"
+                        }
+                    }},
+                    "count": {
+                        "$sum": 1
+                    }
+                }
+            },
+           {
+                "$set": {
+                    "sent": "$_id.sent",
+                    "date": "$_id.date",
+                }
+            },
+            {
+                "$project": {
+                    '_id': 0
+                }
+            }
+    ]
+    if(dataContent == 'article-content'):
+        result = list(DB[ARTICLE_COLLECTION].aggregate(article_pipeline))
+    elif(dataContent == 'review-content'):
+        result = list(DB[REVIEW_COLLECTION].aggregate(review_pipeline))
+    else:
+        article_result = list(
+            DB[ARTICLE_COLLECTION].aggregate(article_pipeline))
+        reviews_result = list(
+            DB[REVIEW_COLLECTION].aggregate(review_pipeline))
+        all_result = article_result+reviews_result
+        df = pd.DataFrame(all_result)
+        result = df.groupby(by=["date", "sent"]).sum()
+        result = result.reset_index().to_dict('records')
     return jsonify(result)
 
 @app.route('/getSentWord')
 def getSentWord():
     name = request.args.get('name')
-
+    dataProduct =  request.args.get('dataProduct')
+    dataSource = request.args.get('dataSource')
     dataContent = request.args.get('content')
 
     article_pipeline = [
+        {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
         {
             "$project": {
                 "artTitle": True,
@@ -627,6 +765,12 @@ def getSentWord():
         }
     ]
     review_pipeline = [
+        {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
         {
             "$project": {
                 "_id": 0,
@@ -711,5 +855,163 @@ def getSentDict():
     result = list(DB[DICT_COLLECTION].find({"$or":[{"type":"pos_dict"},{"type":"neg_dict"}]},{"list":1,"type":1,"_id":0}))
     return jsonify(result)
 
+
+
+@app.route('/getNgram')
+def getNgram():
+    
+    topic = request.args.get('topic')
+    keyword = request.args.get('keyword')
+    dataProduct =  request.args.get('dataProduct')
+    dataSource = request.args.get('dataSource')
+    dateStart = request.args.get('dateStart')
+    dateStartList = dateStart.split('/')
+    dateEnd = request.args.get('dateEnd')
+    dateEndList = dateEnd.split('/')
+    dataContent = request.args.get('content')
+    N = int(request.args.get('n'))
+
+    article_pipeline=[
+        {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
+        {
+            "$project":{
+                "_id":0,
+                "origin_sentence":1,
+                "word":1,
+                "date": {
+                    "$dateFromString": {
+                        "dateString": '$artDate'
+                    }
+                }
+            },
+        },
+        {
+            "$match": {
+                'word': {
+                    "$in": [keyword]
+                },
+                "date": {
+                    "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
+                    "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+                }
+            },
+        },
+        {
+            "$project":{
+                "_id":0,
+                "word":1
+            }
+        }
+    ]
+    review_pipeline = [
+                {
+            "$match": {
+                "artCat": dataProduct,
+                "source":dataSource
+            }
+        },
+        {
+            "$project": {
+                "_id":0,
+                "origin_sentence":1,
+                "word":1,
+                "artUrl":1,
+                "date": {
+                    "$dateFromString": {
+                        "dateString": '$artDate'
+                    }
+                }
+            },
+        },
+        {
+           "$match": {
+                'word': {
+                    "$in": [keyword]
+                },
+                "date": {
+                    "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
+                    "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+                }
+            },
+        },
+        {
+            "$lookup": {
+                "from": "Review",
+                "localField": "artUrl",
+                "foreignField": "artUrl",
+                "as": "reviews"
+            }
+        },
+        {
+            "$project": {
+                "reviews._id": 0
+            },
+        },
+        {
+            "$unwind": "$reviews"
+        },
+        {
+            "$set":{
+                "word":"$reviews.word"
+            }
+        },
+        {
+            "$project":{
+                "word":1
+            }
+        }
+    ]
+    def article():
+        result = list(DB[ARTICLE_COLLECTION].aggregate(article_pipeline))
+        result = pd.DataFrame(result)        
+        bigram= result['word'].apply(lambda x:list(ngrams(x,N)))
+        bigram_df = bigram.apply(lambda x:[" ".join(w) for w in x]).explode().to_frame()
+        bigram_df['word']  = bigram_df['word'].apply(lambda word:str(word).upper())
+        group = bigram_df[bigram_df['word'].str.contains(keyword)].groupby(['word'])
+        group = group.size().reset_index(name='counts').sort_values(by='counts',ascending=False)
+        result = group[group['counts']>0].to_dict('records')
+        return result
+    def review():
+        result = list(DB[ARTICLE_COLLECTION].aggregate(review_pipeline))
+        result = pd.DataFrame(result)
+        bigram= result['word'].apply(lambda x:list(ngrams(x,N)))
+        bigram_df = bigram.apply(lambda x:[" ".join(w) for w in x]).explode().to_frame()
+        bigram_df['word']  = bigram_df['word'].apply(lambda word:str(word).upper())
+        group = bigram_df[bigram_df['word'].str.contains(keyword , na=False)].groupby(['word'])
+        group = group.size().reset_index(name='counts').sort_values(by='counts',ascending=False)
+        result = group[group['counts']>0].to_dict('records')
+        return result
+    
+    
+    if(dataContent == 'article-content'):
+        result =article()
+
+    elif(dataContent == 'review-content'):
+        result = review()
+    else:
+        all_result = article()+review()
+        wordList = []
+        result =  []
+        
+        for item in all_result:
+            if item['word'] not in wordList:
+                wordList.append(item['word'])
+                result.append(item)
+            else:
+                element = next(item for i in result if i["word"] == item['word'])
+                element['counts'] +=item['counts']
+            
+    return jsonify(result)
+
+@app.route('/getCors')
+def getCors():
+    test =""
+    
+    
 if __name__ == '__main__':
     app.run(debug=True)
