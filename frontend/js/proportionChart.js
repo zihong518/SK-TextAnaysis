@@ -1,5 +1,5 @@
 import { getWordProportion, getDateRange } from './api.js'
-
+import { keywordNgram, keywordSentence } from './ngram.js'
 function proportionChart(data, filter) {
   const canvasWidth = (document.body.clientWidth * 10) / 13 - 100
   const canvasHeight = (canvasWidth * 3) / 4
@@ -184,7 +184,62 @@ function proportionChart(data, filter) {
       .style('font-size', '10px')
       .text((i) => i.word)
       .attr('class', 'word')
+      .on('mouseover', (event, d) => {
+        d3.selectAll(`text[data-propWord =${d.word}]`).transition().duration(400).style('font-size', '15px')
+        d3.selectAll(`circle[data-propWord =${d.word}]`).transition().duration(400).attr('r', 20)
+      })
+      .on('mouseleave', (event, d) => {
+        d3.selectAll(`text[data-propWord =${d.word}]`).transition().duration(400).style('font-size', '10px')
+        d3.selectAll(`circle[data-propWord =${d.word}]`)
+          .transition()
+          .duration(400)
+          .attr('r', 10)
+          .attr('fill-opacity', (d) => getOpacity(d))
+      })
   }
+
+  d3.selectAll('text.word').on('click', (event, d) => {
+    let date = document.querySelectorAll(`#proportionDateFilterSvg .parameter-value text`)
+    let dateStart = date[0].textContent
+    let dateEnd = date[1].textContent
+    const element = event.target.dataset
+    d3.select('body').classed('overflow-y-hidden	', true)
+    d3.select('#proportionModal').classed('hidden', false).classed('opacity-100', true)
+    const loading = `<div role="status" class="py-44" >
+                  <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto" />
+
+                  <p class="text-center text-2xl animate-pulse">Loading...</p>
+                </div>`
+
+    function generateModal(key) {
+      document.getElementById(`bigram-body-${key}`).innerHTML = ''
+      document.getElementById(`trigram-body-${key}`).innerHTML = ''
+      document.getElementById(`sentence-list-${key}`).innerHTML = ''
+      document.getElementById(`bigram-loading-${key}`).innerHTML = loading
+      document.getElementById(`trigram-loading-${key}`).innerHTML = loading
+      document.getElementById(`sentence-list-${key}`).innerHTML = loading
+      d3.select(`#modal-topic-${key}`).text(document.getElementById(`keyword${key}`).innerText)
+      d3.select(`#modal-keyword-${key}`).text(element.propWord)
+      d3.select(`#modal-dateStart-${key}`).text(dateStart)
+      d3.select(`#modal-dateEnd-${key}`).text(dateEnd)
+      let input = {
+        type: filter.type,
+        topic: document.getElementById(`keyword${key}`).innerText,
+        keyword: element.propWord,
+        product: filter.product,
+        source: filter.source,
+        dateStart: dateStart,
+        dateEnd: dateEnd,
+        content: filter.content,
+      }
+      keywordNgram(input, key)
+      keywordSentence(input, key)
+
+      const sentenceButton = document.getElementById(`sentence-button-${key}`)
+    }
+    generateModal('A')
+    generateModal('B')
+  })
   function drawPlot() {
     d3.selectAll('#proportionChart circle')
       .data(allData)
@@ -192,9 +247,10 @@ function proportionChart(data, filter) {
         return d.x
       })
       .attr('cy', (d) => d.y)
-      .attr('r', 10)
       .attr('fill-opacity', (d) => getOpacity(d))
       .attr('fill', (d) => getColor(d))
+      .attr('class', 'cursor-pointer')
+      .attr('data-propWord', (d) => d.word)
 
     d3.selectAll('.word')
       .data(allData)
@@ -202,9 +258,10 @@ function proportionChart(data, filter) {
       .attr('y', (d) => d.y)
       .attr('alignment-baseline', 'middle') // Vertically align text with point
       .attr('text-anchor', 'middle')
-      .style('font-size', '10px')
       .text((i) => i.word)
-      .attr('class', 'word')
+      .attr('data-propWord', (d) => d.word)
+      .attr('class', 'word cursor-pointer')
+
     // svg.selectAll(".word").
   }
 

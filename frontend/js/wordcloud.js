@@ -1,5 +1,5 @@
 import { getWordCloud } from './api.js'
-import Ngram from './ngram.js'
+import { Ngram, sentence } from './ngram.js'
 function wordCloud(filter, bankLength) {
   const main = document.getElementById('canvas')
   const idName = filter.id
@@ -79,22 +79,7 @@ function wordCloud(filter, bankLength) {
         size: x.wordCount,
       })
     })
-    // let myWords = []
-    // test.map((x) => {
-    //   const pair = x.split(':')
-    //   const word = pair[0]
-    //     .replace(/[()!\.,:;*\?-]/g, '')
-    //     .replace(/\s+/g, '')
-    //     .replace(/\d+/g, '')
-    //   if (word) {
-    //     if (word.length > 1) {
-    //       myWords.push({
-    //         text: word,
-    //         size: parseInt(pair[1]),
-    //       })
-    //     }
-    //   }
-    // })
+
     myWords = tokenize(myWords)
     myWords = myWords.sort((a, b) => b.size - a.size)
     myWords = myWords.slice(0, 50)
@@ -145,29 +130,34 @@ function wordCloud(filter, bankLength) {
         .attr('class', 'cloudText cursor-pointer')
         .attr('data-color', (d, i) => fill[d.index % 10])
     }
-
+    function test(input) {
+      console.log('test')
+      sentence(input)
+    }
     d3.selectAll('text.cloudText')
       .on('mouseover', wordHighlight)
       .on('mouseleave', wordHighlight)
       .on('click', (event, d) => {
         document.getElementById('bigram-body').innerHTML = ''
         document.getElementById('trigram-body').innerHTML = ''
-
-        const loading = `<div role="status" class="py-44" >
+        document.getElementById('sentence-list').innerHTML = ''
+        const loading = `<div role="status" class="py-20" >
                   <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto" />
 
                   <p class="text-center text-2xl animate-pulse">Loading...</p>
                 </div>`
         document.getElementById('bigram-loading').innerHTML = loading
         document.getElementById('trigram-loading').innerHTML = loading
-
+        document.getElementById('sentence-list').innerHTML = loading
         const element = event.target.dataset
-
+        d3.select('body').classed('overflow-y-hidden	', true)
         d3.select('#modal').classed('hidden', false).classed('opacity-100', true)
         d3.select('#modal-topic').text(element.bank)
         d3.select('#modal-keyword').text(element.word)
-
+        d3.select('#modal-dateStart').text(element.dateStart)
+        d3.select('#modal-dateEnd').text(element.dateEnd)
         let input = {
+          type: filter.type,
           topic: element.bank,
           keyword: element.word,
           product: filter.product,
@@ -177,6 +167,7 @@ function wordCloud(filter, bankLength) {
           content: filter.content,
         }
         Ngram(input)
+        sentence(input)
       })
   })
 

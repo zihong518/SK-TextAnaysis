@@ -8,7 +8,7 @@ from config import DB_NAME, DB, DICT_COLLECTION, REVIEW_COLLECTION, ARTICLE_COLL
 from datetime import datetime
 from operator import itemgetter
 from itertools import groupby
-
+import random
 import pandas as pd
 # configuration
 DEBUG = True
@@ -29,6 +29,7 @@ def test():
 
 @app.route('/getCloud', methods=['GET'])
 def getCloud():
+    type = request.args.get('type')
     name = request.args.get('name')
     dataProduct =  request.args.get('dataProduct')
     dataSource = request.args.get('dataSource')
@@ -37,17 +38,22 @@ def getCloud():
     dateStartList = dateStart.split('/')
     dateEndList = dateEnd.split('/')
     dataContent = request.args.get('content')
-
-    article_pipeline = [
+    if type == "App":
+        source = dataSource.split(',')
+        source_list = []
+        for i in source:
+            source_list.append({"source":i})
+        article_pipeline=[ 
         {
             "$match": {
-                "artCat": dataProduct,
-                "source":dataSource
+                "artCat": name,
+                "$or":source_list,
             }
         },
         {
             "$project": {
-                "artTitle": True,
+                "_id":0,
+                "sentence": True,
                 "word": True,
                 "date": {
                     "$dateFromString": {
@@ -58,7 +64,6 @@ def getCloud():
         },
         {
             "$match": {
-                "artTitle": {"$regex": name},
                 "date": {
                     "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
                     "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
@@ -83,8 +88,55 @@ def getCloud():
                 }
             }
         }
+        ]
+    else:
+        article_pipeline = [
+            {
+                "$match": {
+                    "artCat": dataProduct,
+                    "source":dataSource
+                }
+            },
+            {
+                "$project": {
+                    "artTitle": True,
+                    "word": True,
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate'
+                        }
+                    }
+                },
+            },
+            {
+                "$match": {
+                    "artTitle": {"$regex": name},
+                    "date": {
+                        "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
+                        "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+                    }
+                }
+            },
+            {
+                "$unwind": "$word"
+            },
+            {
+                "$group": {
+                    "_id": {'$toUpper':"$word"},
+                    "wordCount": {
+                        "$sum": 1
+                    }
+                }
+            },
+            {
+                "$match": {
+                    "wordCount": {
+                        "$gt": 2
+                    }
+                }
+            }
 
-    ]
+        ]
     review_pipeline = [
                 {
             "$match": {
@@ -178,23 +230,37 @@ def getCloud():
 
 @app.route('/getCount', methods=['GET'])
 def getCount():
-
+    type = request.args.get('type')
     bankList = request.args.get('name').split(',')
     bankList_lower = [word.lower() for word in bankList]
     bankList = bankList+bankList_lower
     dataProduct =  request.args.get('dataProduct')
     dataSource = request.args.get('dataSource')
     dataContent = request.args.get('content')
-    article_pipeline = [
-                {
+    if type == "App":
+        source = dataSource.split(',')
+        source_list = []
+        bank_list = []
+        for i in source:
+            source_list.append({"source":i})
+        for bank in bankList:
+            bank_list.append({"artCat":bank})
+        article_pipeline = [
+        {
             "$match": {
-                "artCat": dataProduct,
-                "source":dataSource
+                "$or": bank_list,
             }
         },
+        { 
+            "$match": {
+                "$or":source_list,
+            }
+        },
+            
         {
             "$project": {
-                "word": True,
+                "_id":0,
+                "artCat":1,
                 "date": {
                     "$dateFromString": {
                         "dateString": '$artDate',
@@ -203,44 +269,91 @@ def getCount():
                 }
             },
         },
-        {
-            "$unwind": "$word"
-        },
-        {
-            "$match": {
-                'word': {
-                    "$in": bankList
-                }
-            }
-        },
-        {
-            "$group": {
-                "_id": {
-                    "Date": {
-                        "$dateToString": {
-                            "format": "%Y-%m", "date": "$date"
-                        }
+            {
+                "$group": {
+                    "_id": {
+                        "Date": {
+                            "$dateToString": {
+                                "format": "%Y-%m", "date": "$date"
+                            }
+                        },
+                        "Word": "$artCat"
                     },
-                    "Word": "$word"
-                },
-                "wordCount": {
-                    "$sum": 1
+                    "wordCount": {
+                        "$sum": 1
+                    }
+                }
+            },
+        {
+                "$set": {
+                    "date": "$_id.Date",
+                    "word": "$_id.Word"
+                }
+            },
+            {
+                "$project":{
+                    "_id":0
                 }
             }
-        },
-        {
-            "$set": {
-                "date": "$_id.Date",
-                "word": {'$toUpper':"$_id.Word"}
-            }
-        },
-        {
-            "$project":{
-                "_id":0
-            }
-        }
-
     ]
+    else:
+        
+        article_pipeline = [
+                    {
+                "$match": {
+                    "artCat": dataProduct,
+                    "source":dataSource
+                }
+            },
+            {
+                "$project": {
+                    "word": True,
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate',
+                            "onError": 'null'
+                        }
+                    }
+                },
+            },
+            {
+                "$unwind": "$word"
+            },
+            {
+                "$match": {
+                    'word': {
+                        "$in": bankList
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "Date": {
+                            "$dateToString": {
+                                "format": "%Y-%m", "date": "$date"
+                            }
+                        },
+                        "Word": "$word"
+                    },
+                    "wordCount": {
+                        "$sum": 1
+                    }
+                }
+            },
+            {
+                "$set": {
+                    "date": "$_id.Date",
+                    "word": {'$toUpper':"$_id.Word"}
+                }
+            },
+            {
+                "$project":{
+                    "_id":0
+                }
+            }
+
+        ]
     review_pipeline = [
                 {
             "$match": {
@@ -433,62 +546,113 @@ def getDateRange():
 
 @app.route('/getProportion', methods=['GET'])
 def getProportion():
+    type = request.args.get('type')
     dataContent = request.args.get('content')
     dataProduct =  request.args.get('dataProduct')
     dataSource = request.args.get('dataSource')
-    def getArticlePipeline(word):
 
-        pipeline = [
-                            {
-            "$match": {
-                "artCat": dataProduct,
-                "source":dataSource
-            }
-        },
-            {
-                "$project": {
-                    "_id": 0,
-                    "word": True,
-                    "artTitle":1,
-                    "date": {
-                        "$dateFromString": {
-                            "dateString": '$artDate'
+    def getArticlePipeline(word):
+        if type=="App":
+            source = dataSource.split(',')
+            source_list = []
+            for i in source:
+                source_list.append({"source":i})
+                
+            pipeline = [
+                {
+                    "$match": {
+                        "artCat": word,
+                        "$or":source_list,
+                }
+                },
+                {
+                    "$project": {
+                        "_id": 0,
+                        "word": True,
+                        "date": {
+                            "$dateFromString": {
+                                "dateString": '$artDate'
+                            }
+                        }
+                    },
+                },
+                {
+                    "$unwind": "$word"
+                },
+                {
+                    "$group": {
+                        "_id": {"word": "$word", "date": "$date"},
+                        "wordCount": {
+                            "$sum": 1
                         }
                     }
                 },
-            },
-            {
-                "$match": {
-                    'artTitle': {
-                        "$regex": word
+                {
+                    "$set": { 
+                        "word": {'$toUpper':"$_id.word"},
+                        "keyword": word,
+                        "date": "$_id.date"
+                    }
+                },
+                {
+                    "$project": {
+                        '_id': 0
                     }
                 }
-            },
-            {
-                "$unwind": "$word"
-            },
-            {
-                "$group": {
-                    "_id": {"word": "$word", "date": "$date"},
-                    "wordCount": {
-                        "$sum": 1
+            ]
+            return pipeline
+        else:
+            pipeline = [
+                {
+                    "$match": {
+                        "artCat": dataProduct,
+                        "source":dataSource
+                }
+                },
+                {
+                    "$project": {
+                        "_id": 0,
+                        "word": True,
+                        "artTitle":1,
+                        "date": {
+                            "$dateFromString": {
+                                "dateString": '$artDate'
+                            }
+                        }
+                    },
+                },
+                {
+                    "$match": {
+                        'artTitle': {
+                            "$regex": word
+                        }
+                    }
+                },
+                {
+                    "$unwind": "$word"
+                },
+                {
+                    "$group": {
+                        "_id": {"word": "$word", "date": "$date"},
+                        "wordCount": {
+                            "$sum": 1
+                        }
+                    }
+                },
+                {
+                    "$set": { 
+                        "word": {'$toUpper':"$_id.word"},
+                        "keyword": word,
+                        "date": "$_id.date"
+                    }
+                },
+                {
+                    "$project": {
+                        '_id': 0
                     }
                 }
-            },
-            {
-                "$set": { 
-                    "word": {'$toUpper':"$_id.word"},
-                    "keyword": word,
-                    "date": "$_id.date"
-                }
-            },
-            {
-                "$project": {
-                    '_id': 0
-                }
-            }
-        ]
-        return pipeline
+            ]
+            return pipeline
 
     def getReviewPipeline(word):
         pipeline = [
@@ -596,24 +760,26 @@ def getProportion():
 
 @app.route('/getSent')
 def getSent():
+    type = request.args.get('type')
     name = request.args.get('name')
     dataProduct =  request.args.get('dataProduct')
     dataSource = request.args.get('dataSource')
     dataContent = request.args.get('content')
-    article_pipeline = [
+    if type=="App":
+        source = dataSource.split(',')
+        source_list = []
+        for i in source:
+            source_list.append({"source":i})
+        article_pipeline = [
             {
                 "$match": {
-                    'origin_sentence': {
-                        "$regex": name
-                    },
-                    "artCat": dataProduct,
-                    "source":dataSource
+                    "artCat": name,
+                    "$or":source_list,
                 }
             },
             {
                 "$project": {
                     "_id": 0,
-                    "artTitle":1,
                     "origin_sentence":1,
                     "date": {
                         "$dateFromString": {
@@ -652,6 +818,60 @@ def getSent():
                 }
             }
         ]
+    else:
+        
+        article_pipeline = [
+                {
+                    "$match": {
+                        'origin_sentence': {
+                            "$regex": name
+                        },
+                        "artCat": dataProduct,
+                        "source":dataSource
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 0,
+                        "artTitle":1,
+                        "origin_sentence":1,
+                        "date": {
+                            "$dateFromString": {
+                                "dateString": '$artDate',
+                                "onError": datetime(2021, 5, 5),
+                            }
+                        },
+                        "sent":1
+                    },
+                },
+                {
+                    "$group": {
+                        "_id": {
+                            "sent": "$sent", 
+                            "date":
+                                {
+                                    "$dateToString": {
+                                        "format": "%Y-%m-%d", "date": "$date"
+                                    }
+                                }
+                                },
+                        "count": {
+                            "$sum": 1
+                        }
+                    }
+                },
+            {
+                    "$set": {
+                        "sent": "$_id.sent",
+                        "date": "$_id.date",
+                    }
+                },
+                {
+                    "$project": {
+                        '_id': 0
+                    }
+                }
+            ]
     review_pipeline =[
          {
                 "$match": {
@@ -716,54 +936,98 @@ def getSent():
 
 @app.route('/getSentWord')
 def getSentWord():
+    type = request.args.get('type')
     name = request.args.get('name')
     dataProduct =  request.args.get('dataProduct')
     dataSource = request.args.get('dataSource')
     dataContent = request.args.get('content')
+    if type=="App":
+        source = dataSource.split(',')
+        source_list = []
+        for i in source:
+            source_list.append({"source":i})
+        article_pipeline = [
+            {
+                "$match": {
+                    "artCat": name,
+                    "$or":source_list,
+                }
+            },
+            {
+                "$project": {
+                    "origin_sentence":True,
+                    "word": True,
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate'
+                        }
+                    }
+                },
+            },
 
-    article_pipeline = [
-        {
-            "$match": {
-                "artCat": dataProduct,
-                "source":dataSource
-            }
-        },
-        {
-            "$project": {
-                "artTitle": True,
-                "origin_sentence":True,
-                "word": True,
-                "date": {
-                    "$dateFromString": {
-                        "dateString": '$artDate'
+            {
+                "$unwind": "$word"
+            },
+            {
+                "$group": {
+                    "_id": {'word':"$word","date":"$date"},
+                    "wordCount": {
+                        "$sum": 1
                     }
                 }
             },
-        },
-        {
-            "$match": {
-                "origin_sentence": {"$regex": name},
-            }
-        },
-        {
-            "$unwind": "$word"
-        },
-        {
-            "$group": {
-                "_id": {'word':"$word","date":"$date"},
-                "wordCount": {
-                    "$sum": 1
+            {
+                "$match": {
+                    "wordCount": {
+                        "$gt": 1
+                    }
                 }
             }
-        },
-          {
-            "$match": {
-                "wordCount": {
-                    "$gt": 3
+        ]
+    else:
+        article_pipeline = [
+            {
+                "$match": {
+                    "artCat": dataProduct,
+                    "source":dataSource
+                }
+            },
+            {
+                "$project": {
+                    "artTitle": True,
+                    "origin_sentence":True,
+                    "word": True,
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate'
+                        }
+                    }
+                },
+            },
+            {
+                "$match": {
+                    "origin_sentence": {"$regex": name},
+                }
+            },
+            {
+                "$unwind": "$word"
+            },
+            {
+                "$group": {
+                    "_id": {'word':"$word","date":"$date"},
+                    "wordCount": {
+                        "$sum": 1
+                    }
+                }
+            },
+            {
+                "$match": {
+                    "wordCount": {
+                        "$gt": 3
+                    }
                 }
             }
-        }
-    ]
+        ]
     review_pipeline = [
         {
             "$match": {
@@ -859,9 +1123,9 @@ def getSentDict():
 
 @app.route('/getNgram')
 def getNgram():
-    
+    type = request.args.get('type')
     topic = request.args.get('topic')
-    keyword = request.args.get('keyword')
+    keyword = request.args.get('keyword').lower()
     dataProduct =  request.args.get('dataProduct')
     dataSource = request.args.get('dataSource')
     dateStart = request.args.get('dateStart')
@@ -870,49 +1134,94 @@ def getNgram():
     dateEndList = dateEnd.split('/')
     dataContent = request.args.get('content')
     N = int(request.args.get('n'))
-
-    article_pipeline=[
-        {
-            "$match": {
-                "artCat": dataProduct,
-                "source":dataSource
-            }
-        },
-        {
-            "$project":{
-                "_id":0,
-                "origin_sentence":1,
-                "word":1,
-                "date": {
-                    "$dateFromString": {
-                        "dateString": '$artDate'
+    if type=="App":
+        source = dataSource.split(',')
+        source_list = []
+        for i in source:
+            source_list.append({"source":i})
+            
+        article_pipeline=[
+                {
+                    "$match": {
+                        "artCat": topic,
+                        "$or":source_list,
+                    }
+                },
+                {
+                    "$project":{
+                        "_id":0,
+                        "origin_sentence":1,
+                        "word":1,
+                        "date": {
+                            "$dateFromString": {
+                                "dateString": '$artDate'
+                            }
+                        }
+                    },
+                },
+                {
+                    "$match": {
+                        'word': {
+                            "$in": [keyword]
+                        },
+                        "date": {
+                            "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
+                            "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+                        }
+                    },
+                },
+                {
+                    "$project":{
+                        "_id":0,
+                        "word":1
                     }
                 }
-            },
-        },
-        {
-            "$match": {
-                'word': {
-                    "$in": [keyword]
-                },
-                "date": {
-                    "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
-                    "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+            ]
+    else:
+        article_pipeline=[
+            {
+                "$match": {
+                    "artTitle": {'$regex':topic},
+                    "artCat":dataProduct,
+                    "source":dataSource
                 }
             },
-        },
-        {
-            "$project":{
-                "_id":0,
-                "word":1
+            {
+                "$project":{
+                    "_id":0,
+                    "origin_sentence":1,
+                    "word":1,
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate'
+                        }
+                    }
+                },
+            },
+            {
+                "$match": {
+                    'word': {
+                        "$in": [keyword]
+                    },
+                    "date": {
+                        "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
+                        "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+                    }
+                },
+            },
+            {
+                "$project":{
+                    "_id":0,
+                    "word":1
+                }
             }
-        }
-    ]
+        ]
     review_pipeline = [
-                {
+        {
             "$match": {
                 "artCat": dataProduct,
-                "source":dataSource
+                "source":dataSource,
+                "artTitle": {'$regex':topic},
             }
         },
         {
@@ -968,23 +1277,27 @@ def getNgram():
     ]
     def article():
         result = list(DB[ARTICLE_COLLECTION].aggregate(article_pipeline))
-        result = pd.DataFrame(result)        
+        if not result:
+           return [] 
+        result = pd.DataFrame(result)   
         bigram= result['word'].apply(lambda x:list(ngrams(x,N)))
         bigram_df = bigram.apply(lambda x:[" ".join(w) for w in x]).explode().to_frame()
         bigram_df['word']  = bigram_df['word'].apply(lambda word:str(word).upper())
-        group = bigram_df[bigram_df['word'].str.contains(keyword)].groupby(['word'])
+        group = bigram_df[bigram_df['word'].str.contains(keyword.upper())].groupby(['word'])
         group = group.size().reset_index(name='counts').sort_values(by='counts',ascending=False)
-        result = group[group['counts']>0].to_dict('records')
+        result = group[group['counts']>1].to_dict('records')
         return result
     def review():
         result = list(DB[ARTICLE_COLLECTION].aggregate(review_pipeline))
+        if not result:
+           return [] 
         result = pd.DataFrame(result)
         bigram= result['word'].apply(lambda x:list(ngrams(x,N)))
         bigram_df = bigram.apply(lambda x:[" ".join(w) for w in x]).explode().to_frame()
         bigram_df['word']  = bigram_df['word'].apply(lambda word:str(word).upper())
-        group = bigram_df[bigram_df['word'].str.contains(keyword , na=False)].groupby(['word'])
+        group = bigram_df[bigram_df['word'].str.contains(keyword.upper() , na=False)].groupby(['word'])
         group = group.size().reset_index(name='counts').sort_values(by='counts',ascending=False)
-        result = group[group['counts']>0].to_dict('records')
+        result = group[group['counts']>1].to_dict('records')
         return result
     
     
@@ -1008,10 +1321,205 @@ def getNgram():
             
     return jsonify(result)
 
-@app.route('/getCors')
-def getCors():
-    test =""
+@app.route('/getSentence')
+def getSentence():
+    type = request.args.get('type')
+    topic = request.args.get('topic')
+    keyword = request.args.get('keyword').lower()
+    regexKeyword = keyword.lower()+ '|'+ keyword.upper()
+    dataProduct =  request.args.get('dataProduct')
+    dataSource = request.args.get('dataSource')
+    dateStart = request.args.get('dateStart')
+    dateStartList = dateStart.split('/')
+    dateEnd = request.args.get('dateEnd')
+    dateEndList = dateEnd.split('/')
+    dataContent = request.args.get('content')
+    if type=="App":
+        source = dataSource.split(',')
+        source_list = []
+        for i in source:
+            source_list.append({"source":i})
+        article_pipeline=[
+                {
+                        "$match": {
+                            "artCat": topic,
+                            "$or":source_list,
+                        }
+                    },
+                    {
+                        "$project":{
+                            "_id":0,
+                            "origin_sentence":1,
+                            "word":1,
+                            "sent":1,
+                            "date": {
+                                "$dateFromString": {
+                                    "dateString": '$artDate'
+                                }
+                            }
+                        },
+                    },
+                    {
+                        "$match": {
+                            'word': {
+                                "$in": [keyword]
+                            },
+                            "date": {
+                                "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
+                                "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+                            }
+                        },
+                    },
+                    
+                {
+                    "$project":{
+                        "date":1,
+                        "sentence":"$origin_sentence",
+                        "sent":1
+                    }
+                }
+            ]
+    else:
+        article_pipeline=[
+            {
+                "$match": {
+                    "artTitle": {'$regex':topic},
+                    "artCat":dataProduct,
+                    "source":dataSource
+                }
+            },
+            {
+                "$project":{
+                    "_id":0,
+                    "artUrl":1,
+                    "word":1,
+                    "sentence_sent":1,
+                    "date": {
+                        "$dateFromString": {
+                            "dateString": '$artDate'
+                        }
+                    }
+                },
+            },
+            {
+                "$match": {
+                    'word': {
+                        "$in": [keyword]
+                    },
+                    "date": {
+                        "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
+                        "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+                    }
+                },
+            },
+            {
+                "$unwind":"$sentence_sent"
+            },
+            {
+                "$match":{
+                    "sentence_sent.sentence":{'$regex':regexKeyword}
+                }
+            },
+            {
+                "$project":{
+                    "word":0
+                }
+            },
+            {
+                "$set":{
+                    "sent":"$sentence_sent.sent",
+                    "sentence":"$sentence_sent.sentence"
+                }
+            },
+            {
+                "$project":{
+                    "sentence_sent":0
+                }
+            }
+        ]
+    review_pipeline = [
+        {
+            "$match": {
+                "artTitle": {'$regex':topic},
+                "artCat":dataProduct,
+                "source":dataSource
+            }
+        },
+        {
+            "$project": {
+                "_id":0,
+                "artUrl":1,
+                "date": {
+                    "$dateFromString": {
+                        "dateString": '$artDate'
+                    }
+                }
+            },
+        },
+        {
+           "$match": {
+                "date": {
+                    "$gte": datetime(int(dateStartList[0]), int(dateStartList[1]), int(dateStartList[2])),
+                    "$lt":datetime(int(dateEndList[0]), int(dateEndList[1]), int(dateEndList[2]))
+                }
+            },
+        },
+        {
+            "$lookup": {
+                "from": "Review",
+                "localField": "artUrl",
+                "foreignField": "artUrl",
+                "as": "reviews"
+            }
+        },
+        {
+            "$project": {
+                "reviews._id": 0
+            },
+        },
+        {
+            "$unwind": "$reviews"
+        },
+        {
+            "$match":{
+                "reviews.cmtContent":{
+                    "$regex":keyword
+                        }
+                      }
+        },
+        {
+            "$set":{
+                "sentence":"$reviews.cmtContent",
+                "sent":"$reviews.sent"
+            }
+        },
+        {
+            "$project":{
+                "artUrl":1,
+                "date":1,
+                "sentence":1,
+                "sent":1
+            }
+        }
+
+    ]
     
-    
+    if(dataContent == 'article-content'):
+        result = list(DB[ARTICLE_COLLECTION].aggregate(article_pipeline))
+    elif(dataContent == 'review-content'):
+        result = list(DB[ARTICLE_COLLECTION].aggregate(review_pipeline))
+    else:
+        result = list(DB[ARTICLE_COLLECTION].aggregate(article_pipeline)) + list(DB[ARTICLE_COLLECTION].aggregate(review_pipeline))
+
+    if(len(result)>5):
+        result = random.sample(result, 5)
+        
+    return jsonify(result)
+
+    # "artTitle": "[問題]新光寰宇滿萬送千拿到者且有famipay請入", 
+    # "artUrl": "https://www.ptt.cc/bbs/creditcard/M.1632839181.A.EF6.html", 
+    # "date": "Tue, 28 Sep 2021 00:00:00 GMT", 
+    # "sent": "negative", 
+    # "sentence": "請問有人用famipay被排除一般消費嗎的嗎？ "
 if __name__ == '__main__':
     app.run(debug=True)

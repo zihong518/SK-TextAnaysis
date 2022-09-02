@@ -1,5 +1,5 @@
 import { getSentDict, getSentWord, getNgram } from './api.js'
-import Ngram from './ngram.js'
+import { Ngram, sentence } from './ngram.js'
 function hexToRgbA(hex, opacity = 0.5) {
   let c
   if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
@@ -17,9 +17,8 @@ async function sentChart(data, filter) {
   const title = document.createElement('p')
   title.setAttribute('class', 'text-2xl text-center my-2')
   title.setAttribute('id', 'title' + filter.bank)
-  title.innerText = filter.bank
+  title.innerHTML = `${filter.bank} <span class="cursor-default	 text-sm bg-[#FD9D9D] p-1 rounded-lg mx-1 cursor-default	">正面</span><span class="cursor-default	 text-sm bg-[#CBFDAE] p-1 rounded-lg mx-1">中性</span><span class="text-sm bg-[#8EE7FD] p-1 rounded-lg mx-1">負面</span>`
   main.appendChild(title)
-
   const group = document.createElement('div')
   group.setAttribute('id', 'sent' + filter.bank)
   main.appendChild(group)
@@ -32,6 +31,7 @@ async function sentChart(data, filter) {
   // set the dimensions and margins of the graph
   const margin = { top: 10, right: 30, bottom: 30, left: 60 }
   // append the svg object to the body of the page
+
   const svg = d3
     .select('#sent' + filter.bank)
     .attr('class', 'flex justify-center flex-col')
@@ -162,7 +162,6 @@ async function sentChart(data, filter) {
       groupData.get(x)
       groupSortData.set(x, groupData.get(x))
     })
-    console.log(groupSortData)
     // Updata the line
     svg
       .selectAll('.sentLine')
@@ -350,30 +349,35 @@ async function sentChart(data, filter) {
         }
         document.getElementById('bigram-body').innerHTML = ''
         document.getElementById('trigram-body').innerHTML = ''
-
-        const loading = `<div role="status" class="py-44" >
+        document.getElementById('sentence-list').innerHTML = ''
+        const loading = `<div role="status" class="py-20" >
                   <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto" />
 
                   <p class="text-center text-2xl animate-pulse">Loading...</p>
                 </div>`
         document.getElementById('bigram-loading').innerHTML = loading
         document.getElementById('trigram-loading').innerHTML = loading
+        document.getElementById('sentence-list').innerHTML = loading
 
         const element = event.target.dataset
 
         d3.select('#modal').classed('hidden', false).classed('opacity-100', true)
         d3.select('#modal-topic').text(filter.bank)
         d3.select('#modal-keyword').text(d.word)
-        console.log(dateStart)
-        console.log(dateEnd)
+        d3.select('#modal-dateStart').text(dateStart)
+        d3.select('#modal-dateEnd').text(dateEnd)
         let input = {
+          type: filter.type,
           topic: filter.bank,
           keyword: d.word,
           dateStart: dateStart,
           dateEnd: dateEnd,
           content: filter.content,
+          source: filter.source,
+          product: filter.product,
         }
         Ngram(input)
+        sentence(input)
       })
       .on('mouseover', (event, d) => {
         d3.selectAll(`rect[data-value = ${d.word}]`).transition().duration(100).attr('fill', hexToRgbA('#FC5C5C', 1))
@@ -420,7 +424,7 @@ async function sentChart(data, filter) {
         }
         document.getElementById('bigram-body').innerHTML = ''
         document.getElementById('trigram-body').innerHTML = ''
-
+        document.getElementById('sentence-list').innerHTML = ''
         const loading = `<div role="status" class="py-44" >
                   <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto" />
 
@@ -428,22 +432,26 @@ async function sentChart(data, filter) {
                 </div>`
         document.getElementById('bigram-loading').innerHTML = loading
         document.getElementById('trigram-loading').innerHTML = loading
-
-        const element = event.target.dataset
+        document.getElementById('sentence-list').innerHTML = loading
 
         d3.select('#modal').classed('hidden', false).classed('opacity-100', true)
         d3.select('#modal-topic').text(filter.bank)
         d3.select('#modal-keyword').text(d.word)
-        console.log(dateStart)
-        console.log(dateEnd)
+        d3.select('#modal-dateStart').text(dateStart)
+        d3.select('#modal-dateEnd').text(dateEnd)
+
         let input = {
+          type: filter.type,
           topic: filter.bank,
           keyword: d.word,
           dateStart: dateStart,
           dateEnd: dateEnd,
           content: filter.content,
+          source: filter.source,
+          product: filter.product,
         }
         Ngram(input)
+        sentence(input)
       })
   }
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>新光文字分析平台</title>
+    <title>新光輿論分析平台</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -84,7 +84,6 @@
     <aside class="w-2/12 h-screen bg-rose-50 fixed">
       <img src="./img/SK_logo.png" alt="" class="px-10 py-6" />
       <h1 class="text-2xl text-center font-bold">新光文字分析平台</h1>
-      {{this.currentType}}
       <div class="mx-5" v-for="">
         <div class="mt-5">
           <p class="text-xl font-bold border-l-8 pl-2 border-main">資料來源</p>
@@ -101,7 +100,7 @@
           <p class="text-xl font-bold border-l-8 pl-2 border-main">{{list.filterTitle}}</p>
           <div class="mt-2 text-xl flex flex-col justify-start flex-wrap">
             <label class="px-3" v-for="item in list.filterItems" v-if="list.checkBox">
-              <input type="checkbox" v-model="list.model" :name="list.filterName" id="" :value="item.value" @change="generateChart" />
+              <input type="checkbox" v-model="list.model" :data-value="list.filterName==='product'&&item.value" :name="list.filterName" id="" :value="item.value" @change="list.filterName==='product'&&bankSubmit($event);generateChart();" />
               {{item.name}}
             </label>
             <label class="px-3" v-for="item in list.filterItems" v-else>
@@ -126,8 +125,8 @@
             </div>
           </div>
           <form class="flex" id="bankButtonForm" @submit.prevent>
-            <input type="text" id="bankButtonInput" class="focus:ring-indigo-500 border block shadow-md border-gray-300 rounded-md px-4" placeholder="請輸入比較文字" />
-            <button type="submit" id="bankSubmitButton" @keyup.enter="bankSubmit" @click="bankSubmit" class="w-100 block border-rounded border border-blue-400 px-4 py-2 mx-2 rounded-xl whitespace-nowrap bg-blue-300">送出</button>
+            <input type="text" v-if="currentType=='Forum'" id="bankButtonInput" class="focus:ring-indigo-500 border block shadow-md border-gray-300 rounded-md px-4" placeholder="請輸入比較文字" />
+            <button type="submit" v-if="currentType=='Forum'" id="bankSubmitButton" @keyup.enter="bankSubmit" @click="bankSubmit" class="w-100 block border-rounded border border-blue-400 px-4 py-2 mx-2 rounded-xl whitespace-nowrap bg-blue-300">送出</button>
           </form>
         </div>
         <div class="mt-6 flex justify-between" :class="currentTab == '文字雲比較' ? 'block' : 'hidden'">
@@ -163,14 +162,22 @@
                   <p class="text-xl my-auto">關鍵字A：</p>
                   <p class="text-2xl py-1 px-1 py-2 px-2 rounded-xl" id="keywordA">{{keywordA}}</p>
                 </div>
-                <input type="text" id="keywordInputA" class="block focus:ring-indigo-500 border block shadow-md border-gray-300 rounded-md px-4 py-1" placeholder="修改關鍵字A" />
+                <input type="text" id="keywordInputA" v-if="currentType=='Forum'" class="block focus:ring-indigo-500 border block shadow-md border-gray-300 rounded-md px-4 py-1" placeholder="修改關鍵字A" />
+                <select name="" class="block focus:ring-indigo-500 border block shadow-md border-gray-300 rounded-md px-4 py-1" id="keywordInputA" v-else>
+                  <option value="" disabled selected>選擇關鍵字A</option>
+                  <option :value="option.value" v-for="option in controlPanel[1].list[0].filterItems">{{option.name}}</option>
+                </select>
               </div>
               <div class="flex mt-1 justify-between">
                 <div class="flex">
                   <p class="text-xl my-auto">關鍵字B：</p>
                   <p class="text-2xl py-1 px-1 py-2 px-2 rounded-xl" id="keywordB">{{keywordB}}</p>
                 </div>
-                <input type="text" id="keywordInputB" class="focus:ring-indigo-500 border block shadow-md border-gray-300 rounded-md px-4 py-1" placeholder="修改關鍵字B" />
+                <input type="text" id="keywordInputB" v-if="currentType=='Forum'" class="block focus:ring-indigo-500 border block shadow-md border-gray-300 rounded-md px-4 py-1" placeholder="修改關鍵字B" />
+                <select name="" class="block focus:ring-indigo-500 border block shadow-md border-gray-300 rounded-md px-4 py-1" id="keywordInputB" v-else>
+                  <option value="" disabled selected>選擇關鍵字B</option>
+                  <option :value="option.value" v-for="option in controlPanel[1].list[0].filterItems">{{option.name}}</option>
+                </select>
               </div>
             </div>
             <div class="flex">
@@ -196,13 +203,27 @@
           <div class="relative bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-3/4 pb-10 \">
             <div class="bg-white">
               <div class="text-center">
-                <h3 class="text-3xl my-5 leading-6 font-medium text-gray-900 py-4" id="modal-title">
+                <h3 class="text-3xl mt-5 leading-6 font-medium text-gray-900 py-4" id="modal-title">
                   <span id="modal-topic" class="text-main"></span>
                   中的
                   <span id="modal-keyword" class="text-main"></span>
                 </h3>
+                <p class="text-sm">
+                  <span id="modal-dateStart"></span>
+                  ~
+                  <span id="modal-dateEnd"></span>
+                </p>
+                <p class="text-2xl my-6 text-center font-bold">
+                  提及內容
+
+                  <span class="text-sm text-[#d20000] mx-1">正面</span>
+                  <span class="text-sm text-[#515456] mx-1">中性</span>
+                  <span class="text-sm text-[#0089d2] mx-1">負面</span>
+                </p>
+                <ul id="sentence-list" class="list-disc mx-20 text-left"></ul>
+                <button id="sentence-button" class="px-4 py-2 bg-rose-200 rounded-lg hover:bg-rose-300 duration-300 transition-all" @click="randomPick">隨機五筆</button>
                 <div>
-                  <p class="text-xl text-center">BiGram</p>
+                  <p class="text-2xl my-6 text-center font-bold">BiGram</p>
                   <table class="table-fixed w-3/4 mx-auto">
                     <thead>
                       <tr class="bg-rose-100 text-xl py-4">
@@ -217,7 +238,7 @@
                   <div id="bigram-loading"></div>
                 </div>
                 <div>
-                  <p class="text-xl text-center">TriGram</p>
+                  <p class="text-2xl my-6 text-center font-bold">TriGram</p>
                   <table class="table-fixed w-3/4 mx-auto">
                     <thead>
                       <tr class="bg-rose-100 text-xl py-4">
@@ -235,7 +256,132 @@
               </div>
             </div>
             <div class="absolute top-0 right-0">
-              <button type="button" class="text-red-400 bg-transparent rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" @click="closeModal" data-modal-toggle="defaultModal">
+              <button type="button" id="closeModal" class="text-red-400 bg-transparent rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" @click="closeModal">
+                <svg aria-hidden="true" class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                <span class="sr-only">Close modal</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="relative z-10 hidden opacity-0 transition-all duration-300" id="proportionModal" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+      <div class="fixed z-10 inset-0 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-full p-4 text-center">
+          <div class="relative bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-10/12 pb-10 \">
+            <div class="bg-white">
+              <div class="text-center flex">
+                <div>
+                  <h3 class="text-3xl my-5 leading-6 font-medium text-gray-900 py-4" id="modal-title">
+                    <span id="modal-topic-A" class="text-main"></span>
+                    中的
+                    <span id="modal-keyword-A" class="text-main"></span>
+                  </h3>
+                  <p class="text-sm">
+                    <span id="modal-dateStart-A"></span>
+                    ~
+                    <span id="modal-dateEnd-A"></span>
+                  </p>
+                  <p class="text-2xl my-6 text-center font-bold">
+                    提及內容
+                    <span class="text-sm text-[#d20000] mx-1">正面</span>
+                    <span class="text-sm text-[#515456] mx-1">中性</span>
+                    <span class="text-sm text-[#0089d2] mx-1">負面</span>
+                  </p>
+
+                  <ul id="sentence-list-A" class="list-disc mx-20 text-left"></ul>
+                  <button id="sentence-button-A" class="px-4 py-2 bg-rose-200 rounded-lg hover:bg-rose-300 duration-300 transition-all" @click="propRandomPick('A')">隨機五筆</button>
+
+                  <div>
+                    <p class="text-2xl text-center font-bold">BiGram</p>
+                    <table class="table-fixed w-3/4 mx-auto">
+                      <thead>
+                        <tr class="bg-rose-100 text-xl py-4">
+                          <th>Word</th>
+                          <th>Word</th>
+                          <th>次數</th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="bigram-body-A"></tbody>
+                    </table>
+                    <div id="bigram-loading-A"></div>
+                  </div>
+                  <div>
+                    <p class="text-2xl text-center font-bold">TriGram</p>
+                    <table class="table-fixed w-3/4 mx-auto">
+                      <thead>
+                        <tr class="bg-rose-100 text-xl py-4">
+                          <th>Word</th>
+                          <th>Word</th>
+                          <th>Word</th>
+                          <th>次數</th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="trigram-body-A"></tbody>
+                    </table>
+                    <div id="trigram-loading-A"></div>
+                  </div>
+                </div>
+                <div>
+                  <h3 class="text-3xl my-5 leading-6 font-medium text-gray-900 py-4" id="modal-title">
+                    <span id="modal-topic-B" class="text-main"></span>
+                    中的
+                    <span id="modal-keyword-B" class="text-main"></span>
+                  </h3>
+                  <p class="text-sm">
+                    <span id="modal-dateStart-B"></span>
+                    ~
+                    <span id="modal-dateEnd-B"></span>
+                  </p>
+                  <p class="text-2xl my-6 text-center font-bold">
+                    提及內容
+                    <span class="text-sm text-[#d20000]">正面</span>
+                    <span class="text-sm text-[#515456]">中性</span>
+                    <span class="text-sm text-[#0089d2]">負面</span>
+                  </p>
+                  <ul id="sentence-list-B" class="list-disc mx-20 text-left"></ul>
+                  <button id="sentence-button-B" class="px-4 py-2 bg-rose-200 rounded-lg hover:bg-rose-300 duration-300 transition-all" @click="propRandomPick('B')">隨機五筆</button>
+
+                  <div>
+                    <p class="text-2xl text-center font-bold">BiGram</p>
+                    <table class="table-fixed w-3/4 mx-auto">
+                      <thead>
+                        <tr class="bg-rose-100 text-xl py-4">
+                          <th>Word</th>
+                          <th>Word</th>
+                          <th>次數</th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="bigram-body-B"></tbody>
+                    </table>
+                    <div id="bigram-loading-B"></div>
+                  </div>
+                  <div>
+                    <p class="text-2xl text-center font-bold">TriGram</p>
+                    <table class="table-fixed w-3/4 mx-auto">
+                      <thead>
+                        <tr class="bg-rose-100 text-xl py-4">
+                          <th>Word</th>
+                          <th>Word</th>
+                          <th>Word</th>
+                          <th>次數</th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="trigram-body-B"></tbody>
+                    </table>
+                    <div id="trigram-loading-B"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="absolute top-0 right-0">
+              <button type="button" class="text-red-400 bg-transparent rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" @click="closeModal">
                 <svg aria-hidden="true" class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
                 <span class="sr-only">Close modal</span>
               </button>
@@ -253,21 +399,7 @@
     <script type="module">
       import wordCloud from './js/wordcloud.js'
       import lineChart from './js/linechart.js'
-      // lineChart()
-      // wordCloud()
     </script>
-    <script>
-      // const sliderRange = d3
-      //   .sliderBottom()
-      //   .min(1000)
-      //   .max(2001)
-      //   .step(1000 * 60 * 60 * 24 * 366) // not 365
-      //   .width(800)
-      //   .fill('#D4011D')
-      //   .tickFormat(d3.timeFormat('%Y'))
-      //   .default([1000, d3.timeParse('%Y')('2021')])
-
-      // d3.select('#slider').append('svg').attr('class', 'mt-7').attr('preserveAspectRatio', 'xMinYMin meet').attr('viewBox', '0 0 875 600').classed('svg-content', true).append('g').attr('transform', 'translate(30,30)').call(sliderRange)
-    </script>
+    <script></script>
   </body>
 </html>

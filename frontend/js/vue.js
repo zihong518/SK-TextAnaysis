@@ -3,6 +3,7 @@ import wordCloud from './wordcloud.js'
 import proportionChart from './proportionChart.js'
 import sentChart from './sentChart.js'
 import { getWordCount, getDateRange, getWordProportion, getSent } from './api.js'
+import { sentence } from './ngram.js'
 
 const { createApp } = Vue
 
@@ -122,17 +123,17 @@ createApp({
             {
               filterTitle: '篩選看板',
               filterName: 'source',
-              model: ['App store', 'Google play'],
+              model: ['app store', 'play store'],
               checkBox: true,
               filterItems: [
                 {
                   name: 'App store',
-                  value: 'App store',
+                  value: 'app store',
                   checked: true,
                 },
                 {
                   name: 'Google play',
-                  value: 'Google play',
+                  value: 'play store',
                   checked: true,
                 },
               ],
@@ -166,13 +167,12 @@ createApp({
           dateEnd: '2022/07/01',
         },
       ],
-      tabs: ['文字雲比較', '提及熱度比較', '使用字詞比較', '情緒分析'],
-      currentTab: '文字雲比較',
-      keywordA: '台新',
-      keywordB: '新光',
+      tabs: ['提及熱度比較', '文字雲比較', '使用字詞比較', '情緒分析'],
+      currentTab: '提及熱度比較',
+      keywordA: 'OU',
+      keywordB: '寰宇',
       minDate: '',
       maxDate: '',
-
       currentType: 'Forum',
     }
   },
@@ -201,10 +201,16 @@ createApp({
             temp.push({ name: x._value })
           })
           this.bankButton = temp
+          this.keywordA = '新光'
+          this.keywordB = '台新'
         } else {
           this.bankButton = this.temp
         }
+        this.generateChart()
       }, 10)
+      // setTimeout(() => {
+      //   this.getSentChart()
+      // }, 30)
     },
     generateChart() {
       this.getWordCloud()
@@ -217,11 +223,6 @@ createApp({
     },
     changeTab(tab) {
       this.currentTab = tab
-      // this.generateChart()
-
-      // if (this.currentTab == '文字雲比較') {
-      //   this.generateChart()
-      // }
     },
     getWordCloud() {
       let element = document.getElementById('canvas')
@@ -235,7 +236,10 @@ createApp({
       const product = document.querySelector('input[name=product]:checked').value
       const source = document.querySelectorAll('input[name=source]:checked')
       const sourceList = [...source].map((x) => x.value).toString()
-      const content = document.querySelector('input[name=content]:checked').value
+      let content = 'article-content'
+      if (this.currentType === 'Forum') {
+        content = document.querySelector('input[name=content]:checked').value
+      }
       // console.log(type,product,sourceList,content);
 
       for (let i = 0; i < this.dateButton.length; i++) {
@@ -269,10 +273,13 @@ createApp({
       const product = document.querySelector('input[name=product]:checked').value
       const source = document.querySelectorAll('input[name=source]:checked')
       const sourceList = [...source].map((x) => x.value).toString()
-      const content = document.querySelector('input[name=content]:checked').value
+      let content = 'article-content'
+      if (this.currentType === 'Forum') {
+        content = document.querySelector('input[name=content]:checked').value
+      }
       // console.log(type,product,sourceList,content);
       const bank = this.bankButton.map((x) => x.name).toString()
-      let data = {
+      let filter = {
         type: type,
         product: product,
         source: sourceList,
@@ -286,11 +293,11 @@ createApp({
         </div>`
 
       document.getElementById('lineChart').innerHTML = loading
-      getWordCount(data)
+      getWordCount(filter)
         .then((res) => {
           this.lineChartData = res.data
           document.getElementById('lineChart').removeChild(document.getElementById('lineChart').firstChild)
-          lineChart(res.data)
+          lineChart(res.data, filter)
         })
         .catch((err) => {
           console.log(err)
@@ -315,7 +322,10 @@ createApp({
       const product = document.querySelector('input[name=product]:checked').value
       const source = document.querySelectorAll('input[name=source]:checked')
       const sourceList = [...source].map((x) => x.value).toString()
-      const content = document.querySelector('input[name=content]:checked').value
+      let content = 'article-content'
+      if (this.currentType === 'Forum') {
+        content = document.querySelector('input[name=content]:checked').value
+      }
       const keywordA = this.keywordA
       const keywordB = this.keywordB
       let filter = {
@@ -354,7 +364,10 @@ createApp({
       const product = document.querySelector('input[name=product]:checked').value
       const source = document.querySelectorAll('input[name=source]:checked')
       const sourceList = [...source].map((x) => x.value).toString()
-      const content = document.querySelector('input[name=content]:checked').value
+      let content = 'article-content'
+      if (this.currentType === 'Forum') {
+        content = document.querySelector('input[name=content]:checked').value
+      }
 
       this.bankButton.forEach((bank) => {
         let filter = {
@@ -375,46 +388,51 @@ createApp({
           })
       })
       document.getElementById('sentChart').removeChild(document.getElementById('sentChart').firstChild)
-      // const type = document.querySelector('input[name=type]:checked').value
-      // const product = document.querySelector('input[name=product]:checked').value
-      // const source = document.querySelectorAll('input[name=source]:checked')
-      // const sourceList = [...source].map((x) => x.value).toString()
-      // const content = document.querySelector('input[name=content]:checked').value
-      // // console.log(type,product,sourceList,content);
-      // const bank = this.bankButton.map((x) => x.name).toString()
     },
-    bankSubmit() {
-      const inputData = document.getElementById('bankButtonInput').value
-      if (inputData) {
+    bankSubmit(event) {
+      let inputData = ''
+      if (this.currentType == 'Forum') {
+        inputData = document.getElementById('bankButtonInput').value
+        if (inputData) {
+          this.bankButton.push({
+            name: inputData,
+          })
+        }
+        const type = document.querySelector('input[name=type]:checked').value
+        const product = document.querySelector('input[name=product]:checked').value
+        const source = document.querySelectorAll('input[name=source]:checked')
+        const sourceList = [...source].map((x) => x.value).toString()
+        let content = 'article-content'
+        if (this.currentType === 'Forum') {
+          content = document.querySelector('input[name=content]:checked').value
+        }
+        let filter = {
+          type: type,
+          product: product,
+          source: sourceList,
+          content: content,
+          bank: inputData,
+          minDate: this.minDate,
+          maxDate: this.maxDate,
+        }
+        getSent(filter)
+          .then((res) => {
+            sentChart(res.data, filter)
+          })
+          .catch((err) => {
+            console.log(err)
+          })
+        this.getWordCloud()
+        this.getLineChart()
+      } else if (event.target.checked) {
+        inputData = event.target.value
         this.bankButton.push({
           name: inputData,
-          selected: true,
         })
+      } else {
+        inputData = event.target.value
+        this.removeBank(event)
       }
-      const type = document.querySelector('input[name=type]:checked').value
-      const product = document.querySelector('input[name=product]:checked').value
-      const source = document.querySelectorAll('input[name=source]:checked')
-      const sourceList = [...source].map((x) => x.value).toString()
-      const content = document.querySelector('input[name=content]:checked').value
-      let filter = {
-        type: type,
-        product: product,
-        source: sourceList,
-        content: content,
-        bank: inputData,
-        minDate: this.minDate,
-        maxDate: this.maxDate,
-      }
-      getSent(filter)
-        .then((res) => {
-          sentChart(res.data, filter)
-        })
-        .catch((err) => {
-          console.log(err)
-        })
-
-      this.getWordCloud()
-      this.getLineChart()
     },
     dateSubmit() {
       const dateStartValue = document.getElementById('dateStart').innerText
@@ -435,6 +453,18 @@ createApp({
       })
       if (this.currentTab == '文字雲比較') {
         this.getWordCloud()
+      }
+
+      if (this.currentType === 'App') {
+        const productCheckbox = document.querySelectorAll('input[name=product]:checked')
+        console.log(productCheckbox)
+        productCheckbox.forEach((x) => {
+          x.checked = false
+          if (x.value === element.target.dataset.value) {
+            const modelList = this.controlPanel[1].list[0].model
+            modelList.splice(modelList.indexOf(x.value), 1)
+          }
+        })
       }
       document.getElementById('sent' + element.target.dataset.value).remove()
       document.getElementById('title' + element.target.dataset.value).remove()
@@ -472,6 +502,64 @@ createApp({
     },
     closeModal() {
       document.getElementById('modal').classList.add('hidden')
+      document.getElementById('app').classList.remove('overflow-y-hidden')
+      document.getElementById('proportionModal').classList.add('hidden')
+    },
+    randomPick() {
+      const type = document.querySelector('input[name=type]:checked').value
+      const product = document.querySelector('input[name=product]:checked').value
+      const source = document.querySelectorAll('input[name=source]:checked')
+      const sourceList = [...source].map((x) => x.value).toString()
+      let content = 'article-content'
+      if (this.currentType === 'Forum') {
+        content = document.querySelector('input[name=content]:checked').value
+      }
+      const loading = `<div role="status" class="py-20">
+                <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto " />
+
+             <p class="text-center text-2xl animate-pulse">Loading...</p>
+        </div>`
+
+      document.getElementById('sentence-list').innerHTML = loading
+      let input = {
+        type: type,
+        topic: document.getElementById('modal-topic').innerText,
+        keyword: document.getElementById('modal-keyword').innerText,
+        product: product,
+        source: sourceList,
+        dateStart: document.getElementById('modal-dateStart').innerText,
+        dateEnd: document.getElementById('modal-dateEnd').innerText,
+        content: content,
+      }
+      sentence(input)
+    },
+    propRandomPick(key) {
+      const type = document.querySelector('input[name=type]:checked').value
+      const product = document.querySelector('input[name=product]:checked').value
+      const source = document.querySelectorAll('input[name=source]:checked')
+      const sourceList = [...source].map((x) => x.value).toString()
+      let content = 'article-content'
+      if (this.currentType === 'Forum') {
+        content = document.querySelector('input[name=content]:checked').value
+      }
+      const loading = `<div role="status" class="py-20">
+                <img src="./img/SK_logo.png" alt="" class="animate-bounce w-40 mx-auto " />
+
+             <p class="text-center text-2xl animate-pulse">Loading...</p>
+        </div>`
+
+      document.getElementById(`sentence-list-${key}`).innerHTML = loading
+      let input = {
+        type: type,
+        topic: document.getElementById(`modal-topic-${key}`).innerText,
+        keyword: document.getElementById(`modal-keyword-${key}`).innerText,
+        product: product,
+        source: sourceList,
+        dateStart: document.getElementById(`modal-dateStart-${key}`).innerText,
+        dateEnd: document.getElementById(`modal-dateEnd-${key}`).innerText,
+        content: content,
+      }
+      keywordSentence(input)
     },
   },
   computed: {
@@ -500,10 +588,8 @@ createApp({
         this.minDate = new Date(data.minDate)
         this.maxDate = new Date(data.maxDate)
       })
-    this.getLineChart()
-    this.getWordCloud()
-    this.getWordProportion()
+
     this.dateRangeCreate()
-    this.getSentChart()
+    this.generateChart()
   },
 }).mount('#app')

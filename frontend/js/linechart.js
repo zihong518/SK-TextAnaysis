@@ -1,6 +1,6 @@
 import { getWordCount, getDateRange } from './api.js'
 
-function lineChart(data) {
+function lineChart(data, filter) {
   function hexToRgbA(hex, opacity = 0.5) {
     let c
     if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
@@ -93,9 +93,9 @@ function lineChart(data) {
 
   bankButtonForm.addEventListener('submit', () => {
     const inputData = document.getElementById('bankButtonInput').value
-    const content = document.querySelector('input[name=content]:checked').value
-
-    getWordCount({ bank: inputData, content: content }).then((res) => {
+    let input = filter
+    input.bank = inputData
+    getWordCount(input).then((res) => {
       let newData = res.data
       newData.forEach((x) => {
         x.date = new Date(x.date)
@@ -284,8 +284,12 @@ function lineChart(data) {
       })
   }
   // Date Filter
-  d3.select('#dateRangeFilterSvg').remove()
-  getDateRange()
+  if (document.getElementById('dateRangeFilterSvg')) {
+    document.getElementById('dateRangeFilterSvg').remove()
+  }
+
+  let type = document.querySelector('input[name=type]:checked').value
+  getDateRange(type)
     .then((res) => {
       return res.data
     })
